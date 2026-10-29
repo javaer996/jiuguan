@@ -87,10 +87,6 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { href: "/templates", label: "对话模板", icon: Layers },
     ],
   },
-  {
-    label: "系统",
-    items: [{ href: "/settings", label: "设置", icon: Settings }],
-  },
 ];
 
 function isActive(pathname: string, href: string) {
