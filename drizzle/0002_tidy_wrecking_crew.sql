@@ -1,0 +1,2 @@
+ALTER TABLE `chat_sessions` ADD `theme_id` char(36);--> statement-breakpoint
+ALTER TABLE `chat_sessions` ADD CONSTRAINT `chat_sessions_theme_id_themes_id_fk` FOREIGN KEY (`theme_id`) REFERENCES `themes`(`id`) ON DELETE set null ON UPDATE no action;

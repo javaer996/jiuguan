@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1793237064800,
+      "tag": "0000_premium_scalphunter",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1793238186528,
+      "tag": "0001_messy_anita_blake",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1793245851363,
+      "tag": "0002_tidy_wrecking_crew",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+import type { TemplateSnapshot } from "@/db/schema/types";
+
+export type PlazaCategoryDTO = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  sortOrder: number;
+  templateCount: number;
+};
+
+export type PlazaAuthorDTO = {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+};
+
+export type PlazaStatus =
+  "draft" | "pending" | "published" | "rejected" | "archived";
+
+export type PlazaTemplateCardDTO = {
+  id: string;
+  title: string;
+  summary: string | null;
+  coverUrl: string | null;
+  category: { id: string; slug: string; name: string } | null;
+  tags: string[];
+  author: PlazaAuthorDTO;
+  isOfficial: boolean;
+  featured: boolean;
+  status: PlazaStatus;
+  published: boolean;
+  cloneCount: number;
+  likeCount: number;
+  viewCount: number;
+  ratingAvg: number;
+  ratingCount: number;
+  publishedAt: string | null;
+  updatedAt: string;
+  liked: boolean;
+  favorited: boolean;
+};
+
+export type PlazaReviewDTO = {
+  id: string;
+  rating: number;
+  content: string | null;
+  createdAt: string;
+  author: PlazaAuthorDTO;
+  mine: boolean;
+};
+
+export type PlazaTemplateDetailDTO = PlazaTemplateCardDTO & {
+  snapshot: TemplateSnapshot | null;
+  version: number | null;
+  changelog: string | null;
+  rejectReason: string | null;
+  reviews: PlazaReviewDTO[];
+  myReview: PlazaReviewDTO | null;
+};
+
+export type PlazaSubmissionDTO = {
+  id: string;
+  title: string;
+  summary: string | null;
+  status: PlazaStatus;
+  rejectReason: string | null;
+  isOfficial: boolean;
+  featured: boolean;
+  category: { id: string; slug: string; name: string } | null;
+  tags: string[];
+  cloneCount: number;
+  likeCount: number;
+  viewCount: number;
+  ratingAvg: number;
+  ratingCount: number;
+  latestVersion: number | null;
+  publishedVersion: number | null;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  updatedAt: string;
+  coverUrl: string | null;
+};
+
+export type AdminPlazaSubmissionDTO = PlazaSubmissionDTO & {
+  author: PlazaAuthorDTO;
+  snapshot: TemplateSnapshot | null;
+  changelog: string | null;
+  published: boolean;
+};
