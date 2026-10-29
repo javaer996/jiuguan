@@ -7,13 +7,19 @@ import {
   ArrowLeft,
   Check,
   Loader2,
+  Plus,
   Save,
   Trash2,
   Wand2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Field } from "@/components/common/field";
 import { EditorSection } from "@/components/common/editor-section";
+import {
+  ChatReplyOptions,
+  ChatStatusStrip,
+} from "@/components/chat/chat-aids";
 import { sanitizeCustomCssSafe } from "@/lib/css/sanitize";
 import {
   AlertDialog,
@@ -38,7 +44,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiClientError, apiFetch } from "@/lib/client/api";
-import { STYLE_PRESETS } from "@/lib/content/defaults";
+import {
+  DEFAULT_REPLY_OPTION_STYLES,
+  DEFAULT_STATUS_TAGS,
+  STYLE_PRESETS,
+} from "@/lib/content/defaults";
 import type { StyleConfig } from "@/db/schema/types";
 import type { ChatStyleDTO } from "@/lib/types/content";
 import { cn, withAlpha } from "@/lib/utils";
@@ -49,6 +59,213 @@ const LAYOUT_OPTIONS = [
   { value: "messenger", label: "即时通讯" },
   { value: "document", label: "文档信笺" },
 ] as const;
+
+const SAMPLE_STATUS_VALUES: Record<string, string> = {
+  情绪: "平静而警觉",
+  好感度: "+12 · 好奇",
+  地点: "吧台窗边",
+};
+
+const SAMPLE_OPTION_TEXTS = [
+  "我在窗边坐下，轻声问她：那杯酒，是留给谁的？",
+  "我没有坐下，只把杯子推回去：先说说你真正想让我听什么。",
+  "我拉过椅子坐到她对面：今晚我有时间，你可以慢慢讲。",
+  "窗边可以，不过你得先告诉我，这杯酒里有没有故事。",
+];
+
+const SAMPLE_GOAL = "想让你留下来，听完她没说出口的往事。";
+
+function StringListEditor({
+  values,
+  onChange,
+  placeholder,
+  maxItems = 12,
+}: {
+  values: string[];
+  onChange: (values: string[]) => void;
+  placeholder?: string;
+  maxItems?: number;
+}) {
+  const [draft, setDraft] = useState("");
+
+  function add() {
+    const value = draft.replace(/\s+/g, " ").trim().slice(0, 16);
+    if (!value) return;
+    if (!values.includes(value) && values.length < maxItems) {
+      onChange([...values, value]);
+    }
+    setDraft("");
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <Input
+          value={draft}
+          maxLength={16}
+          placeholder={placeholder}
+          className="h-8 text-xs"
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              add();
+            }
+          }}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 shrink-0 rounded-lg"
+          onClick={add}
+          disabled={!draft.trim() || values.length >= maxItems}
+        >
+          <Plus />
+          添加
+        </Button>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {values.map((value, index) => (
+          <span
+            key={`${value}-${index}`}
+            className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-background/30 px-2 py-1 text-[11px]"
+          >
+            {value}
+            <button
+              type="button"
+              aria-label={`移除 ${value}`}
+              onClick={() =>
+                onChange(values.filter((_, itemIndex) => itemIndex !== index))
+              }
+              className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+            >
+              <X className="size-3" />
+            </button>
+          </span>
+        ))}
+        {values.length === 0 && (
+          <p className="text-[11px] text-muted-foreground">
+            尚未添加，生成时会使用默认列表。
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatusTagEditor({
+  values,
+  notes,
+  onChange,
+  maxItems = 12,
+}: {
+  values: string[];
+  notes: Record<string, string>;
+  onChange: (values: string[], notes: Record<string, string>) => void;
+  maxItems?: number;
+}) {
+  const [draft, setDraft] = useState("");
+
+  function add() {
+    const value = draft.replace(/\s+/g, " ").trim().slice(0, 16);
+    if (!value) return;
+    if (!values.includes(value) && values.length < maxItems) {
+      onChange([...values, value], notes);
+    }
+    setDraft("");
+  }
+
+  function remove(value: string) {
+    const nextNotes = { ...notes };
+    delete nextNotes[value];
+    onChange(
+      values.filter((item) => item !== value),
+      nextNotes,
+    );
+  }
+
+  function updateNote(value: string, note: string) {
+    onChange(values, { ...notes, [value]: note });
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <Input
+          value={draft}
+          maxLength={16}
+          placeholder="添加状态标签，例如：情绪、好感度、地点"
+          className="h-8 text-xs"
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              add();
+            }
+          }}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 shrink-0 rounded-lg"
+          onClick={add}
+          disabled={!draft.trim() || values.length >= maxItems}
+        >
+          <Plus />
+          添加
+        </Button>
+      </div>
+
+      {values.length > 0 ? (
+        <div className="space-y-2">
+          {values.map((value) => (
+            <div
+              key={value}
+              className="rounded-xl border border-border/60 bg-background/25 p-2.5"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex items-center rounded-lg border border-border/60 bg-background/40 px-2 py-1 text-[11px] font-medium">
+                  {value}
+                </span>
+                <button
+                  type="button"
+                  aria-label={`移除状态 ${value}`}
+                  onClick={() => remove(value)}
+                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+              <Textarea
+                value={notes[value] ?? ""}
+                rows={2}
+                maxLength={300}
+                placeholder="可选：说明这个状态代表什么、如何取值或变化，AI 会按说明填写"
+                className="mt-2 min-h-12 resize-y text-xs leading-relaxed"
+                onChange={(event) => updateNote(value, event.target.value)}
+              />
+              <p className="mt-1 text-right text-[10px] text-muted-foreground">
+                {notes[value]?.length ?? 0}/300 · 会交给 AI
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          尚未添加，生成时会使用默认列表。
+        </p>
+      )}
+
+      <p className="text-[11px] leading-relaxed text-muted-foreground">
+        说明可以写取值范围、初始值和变化规则，例如「0-100，初始
+        20，每次最多变化 5」；AI 生成状态时会按对应说明处理。已有对话会参考上一轮状态，
+        如果想每轮强制重算，可以写「每轮都必须…」。
+      </p>
+    </div>
+  );
+}
 
 type StyleForm = {
   name: string;
@@ -103,6 +320,24 @@ export function StylePreview({
   ) : (
     "「窗边吧。」"
   );
+  const statusTags = config.statusTags?.length
+    ? config.statusTags
+    : DEFAULT_STATUS_TAGS;
+  const optionStyles = config.replyOptionStyles?.length
+    ? config.replyOptionStyles
+    : DEFAULT_REPLY_OPTION_STYLES;
+  const optionCount = Math.min(
+    Math.max(1, config.replyOptionCount ?? 3),
+    optionStyles.length,
+  );
+  const sampleStatus = statusTags.map((label) => ({
+    label,
+    value: SAMPLE_STATUS_VALUES[label] ?? "目光落在你身上",
+  }));
+  const sampleOptions = optionStyles.slice(0, optionCount).map((style, index) => ({
+    style,
+    text: SAMPLE_OPTION_TEXTS[index % SAMPLE_OPTION_TEXTS.length]!,
+  }));
 
   return (
     <div
@@ -121,6 +356,14 @@ export function StylePreview({
           lineHeight,
         }}
       >
+        {(config.showStatusTags || config.showGoal) && (
+          <ChatStatusStrip
+            status={config.showStatusTags ? sampleStatus : undefined}
+            goal={config.showGoal ? SAMPLE_GOAL : undefined}
+            notes={config.statusTagNotes}
+          />
+        )}
+
         <div
           className={cn(
             "flex gap-3",
@@ -204,6 +447,10 @@ export function StylePreview({
             )}
           </div>
         </div>
+
+        {config.showReplyOptions && (
+          <ChatReplyOptions options={sampleOptions} compact />
+        )}
       </div>
     </div>
   );
@@ -242,6 +489,24 @@ export function StyleEditor({ initial }: { initial?: ChatStyleDTO }) {
       config: { ...preset.config },
     }));
     toast.success(`已应用「${preset.name}」预设`);
+  }
+
+  function toggleInteraction(
+    key: "showStatusTags" | "showGoal" | "showReplyOptions",
+    checked: boolean,
+  ) {
+    setConfig(key, checked);
+    if (key === "showStatusTags" && checked && !form.config.statusTags?.length) {
+      setConfig("statusTags", [...DEFAULT_STATUS_TAGS]);
+    }
+    if (key === "showReplyOptions" && checked) {
+      if (!form.config.replyOptionStyles?.length) {
+        setConfig("replyOptionStyles", [...DEFAULT_REPLY_OPTION_STYLES]);
+      }
+      if (!form.config.replyOptionCount) {
+        setConfig("replyOptionCount", 3);
+      }
+    }
   }
 
   async function handleSave() {
@@ -526,6 +791,140 @@ export function StyleEditor({ initial }: { initial?: ChatStyleDTO }) {
           </EditorSection>
 
           <EditorSection
+            title="互动增强"
+            description="让 AI 在每轮回复后整理人物状态与当前目标，并给出可以一键填入输入框的回复选项。"
+          >
+            <div className="grid gap-3 sm:grid-cols-3">
+              {(
+                [
+                  ["showStatusTags", "人物状态"],
+                  ["showGoal", "对话目标"],
+                  ["showReplyOptions", "回复选项"],
+                ] as const
+              ).map(([key, label]) => (
+                <label
+                  key={key}
+                  className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/25 px-3 py-2.5"
+                >
+                  <span className="text-xs">{label}</span>
+                  <Switch
+                    checked={Boolean(form.config[key])}
+                    onCheckedChange={(checked) =>
+                      toggleInteraction(key, checked)
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+
+            {form.config.showStatusTags && (
+              <Field
+                label="状态标签与说明"
+                hint="AI 会为每个标签填写当前值；说明用于规定它的含义、取值范围和变化方式"
+              >
+                <StatusTagEditor
+                  values={
+                    form.config.statusTags?.length
+                      ? form.config.statusTags
+                      : DEFAULT_STATUS_TAGS
+                  }
+                  notes={form.config.statusTagNotes ?? {}}
+                  onChange={(values, notes) => {
+                    setConfig("statusTags", values);
+                    setConfig("statusTagNotes", notes);
+                  }}
+                />
+              </Field>
+            )}
+
+            {form.config.showGoal && (
+              <p className="rounded-xl border border-border/50 bg-background/25 px-3 py-2.5 text-[11px] leading-relaxed text-muted-foreground">
+                对话目标会显示在聊天顶部，由 AI 根据当前场景持续更新；长时间对话中也能记住角色此刻想做什么。
+              </p>
+            )}
+
+            {form.config.showReplyOptions && (
+              <div className="space-y-4">
+                <Field
+                  label="回复选项风格"
+                  hint="点击某个选项会把它填入输入框，可修改后再发送"
+                >
+                  <StringListEditor
+                    values={
+                      form.config.replyOptionStyles?.length
+                        ? form.config.replyOptionStyles
+                        : DEFAULT_REPLY_OPTION_STYLES
+                    }
+                    onChange={(values) => {
+                      setConfig("replyOptionStyles", values);
+                      const max = Math.max(
+                        1,
+                        Math.min(6, values.length || 1),
+                      );
+                      if (
+                        (form.config.replyOptionCount ?? 3) > max
+                      ) {
+                        setConfig("replyOptionCount", max);
+                      }
+                    }}
+                    placeholder="例如：温柔、试探、坚定"
+                    maxItems={8}
+                  />
+                </Field>
+                <Field
+                  label="每轮选项数量"
+                  hint={`${Math.min(
+                    Math.max(1, form.config.replyOptionCount ?? 3),
+                    Math.max(
+                      1,
+                      (form.config.replyOptionStyles?.length
+                        ? form.config.replyOptionStyles
+                        : DEFAULT_REPLY_OPTION_STYLES
+                      ).length,
+                    ),
+                  )} 个`}
+                >
+                  <Input
+                    type="range"
+                    min={1}
+                    max={Math.max(
+                      1,
+                      Math.min(
+                        6,
+                        (form.config.replyOptionStyles?.length
+                          ? form.config.replyOptionStyles
+                          : DEFAULT_REPLY_OPTION_STYLES
+                        ).length,
+                      ),
+                    )}
+                    step={1}
+                    value={Math.min(
+                      Math.max(1, form.config.replyOptionCount ?? 3),
+                      Math.max(
+                        1,
+                        Math.min(
+                          6,
+                          (form.config.replyOptionStyles?.length
+                            ? form.config.replyOptionStyles
+                            : DEFAULT_REPLY_OPTION_STYLES
+                          ).length,
+                        ),
+                      ),
+                    )}
+                    onChange={(event) =>
+                      setConfig("replyOptionCount", Number(event.target.value))
+                    }
+                  />
+                </Field>
+              </div>
+            )}
+
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              开启后，状态、目标和回复选项会随主回复一起生成，通常不会额外调用接口；只有点击「换一组」时才会再调用一次。使用结构化输出格式时会单独生成互动信息。生成失败不会影响正常对话。
+            </p>
+          </EditorSection>
+
+          <EditorSection
             title="自定义 CSS"
             description="保存后会在渲染对话时净化并注入，仅作用于消息区域。"
           >
@@ -542,7 +941,9 @@ export function StyleEditor({ initial }: { initial?: ChatStyleDTO }) {
             <p className="text-[11px] leading-relaxed text-muted-foreground">
               选择器会自动限定在对话内，可写{" "}
               <code>.zy-bubble</code>、<code>.zy-content</code>、
-              <code>.zy-name</code>、<code>.zy-avatar</code>。包含{" "}
+              <code>.zy-name</code>、<code>.zy-avatar</code>、
+              <code>.zy-aid-status</code>、<code>.zy-aid-goal</code>、
+              <code>.zy-aid-option</code>。包含{" "}
               <code>@import</code>、<code>url()</code> 或脚本的规则会被移除。
               下方预览会实时应用清洗后的 CSS。
             </p>

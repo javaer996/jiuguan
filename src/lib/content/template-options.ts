@@ -74,7 +74,12 @@ export async function loadTemplateOptions(
         .where(and(eq(themes.userId, userId), isNull(themes.deletedAt)))
         .orderBy(asc(themes.name)),
       db
-        .select({ id: apiProviders.id, name: apiProviders.name })
+        .select({
+          id: apiProviders.id,
+          name: apiProviders.name,
+          model: apiProviders.model,
+          models: apiProviders.models,
+        })
         .from(apiProviders)
         .where(
           and(

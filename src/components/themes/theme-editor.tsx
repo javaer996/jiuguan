@@ -452,7 +452,9 @@ export function ThemeEditor({ initial }: { initial?: ThemeDTO }) {
             <p className="text-[11px] leading-relaxed text-muted-foreground">
               选择器会自动限定在 <code>.zy-chat</code> 内，可写{" "}
               <code>.zy-bubble</code>、<code>.zy-content</code>、
-              <code>.zy-name</code>、<code>.zy-avatar</code>。包含{" "}
+              <code>.zy-name</code>、<code>.zy-avatar</code>、
+              <code>.zy-aid-status</code>、<code>.zy-aid-goal</code>、
+              <code>.zy-aid-option</code>。包含{" "}
               <code>@import</code>、<code>url()</code> 或脚本的规则会被移除。
             </p>
           </EditorSection>

@@ -77,6 +77,30 @@ export function ChatSettingsDialog({
   );
   const [saving, setSaving] = useState(false);
 
+  const selectedProvider = detail.options.providers.find(
+    (option) => option.id === providerId,
+  );
+  const providerModelInfo =
+    providerId === NONE ? detail.provider : selectedProvider;
+  const availableModels = providerModelInfo
+    ? [...new Set([providerModelInfo.model, ...(providerModelInfo.models ?? [])])]
+    : [];
+
+  function handleProviderChange(value: string) {
+    setProviderId(value);
+    const next =
+      value === NONE
+        ? detail.provider
+        : detail.options.providers.find((option) => option.id === value);
+    const nextModels = new Set([
+      ...(next?.model ? [next.model] : []),
+      ...(next?.models ?? []),
+    ]);
+    if (model.trim() && nextModels.size > 0 && !nextModels.has(model.trim())) {
+      setModel("");
+    }
+  }
+
   function toggleWorldbook(id: string, checked: boolean) {
     setWorldbookIds((previous) =>
       checked
@@ -129,7 +153,7 @@ export function ChatSettingsDialog({
     {
       label: "API 供应商",
       value: providerId,
-      set: setProviderId,
+      set: handleProviderChange,
       options: detail.options.providers,
       empty: "跟随默认供应商",
     },
@@ -203,14 +227,55 @@ export function ChatSettingsDialog({
                 </Select>
               </div>
             ))}
-            <div className="space-y-2">
+            <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="chat-model">模型</Label>
               <Input
                 id="chat-model"
                 value={model}
-                placeholder="留空则使用供应商默认模型"
+                placeholder={
+                  providerModelInfo
+                    ? `留空则使用供应商默认模型 ${providerModelInfo.model}`
+                    : "留空则使用供应商默认模型"
+                }
                 onChange={(event) => setModel(event.target.value)}
               />
+              {availableModels.length > 0 && (
+                <div className="space-y-1.5 rounded-lg border border-border/50 bg-background/30 p-2">
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setModel("")}
+                      className={cn(
+                        "rounded-md px-2 py-1 text-[10px] transition-colors",
+                        model.trim() === ""
+                          ? "bg-primary/15 text-primary"
+                          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                      )}
+                    >
+                      跟随默认 · {providerModelInfo?.model}
+                    </button>
+                    {availableModels.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        title={item}
+                        onClick={() => setModel(item)}
+                        className={cn(
+                          "max-w-full truncate rounded-md px-2 py-1 text-[10px] transition-colors",
+                          model.trim() === item
+                            ? "bg-primary/15 text-primary"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                        )}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    这些模型来自供应商设置。也可以直接输入列表外的自定义模型名。
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

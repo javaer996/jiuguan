@@ -1,13 +1,20 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { chatSessions, messages } from "@/db/schema";
-import type { MessageMetadata } from "@/db/schema/types";
+import type { ChatAids, MessageMetadata } from "@/db/schema/types";
 import { buildChatPrompt, estimateTokens } from "@/lib/ai/prompt";
 import { maybeAutoCompress } from "@/lib/chat/memory";
 import { streamCompletion } from "@/lib/ai/openai";
 import { decryptSecret } from "@/lib/crypto/secretbox";
 import { getAjv } from "@/lib/schema/validate";
 import type { ChatContext } from "@/lib/chat/context";
+import {
+  parseGeneratedAids,
+  isAidsComplete,
+} from "@/lib/chat/aids";
+import { resolveAidsConfig } from "@/lib/chat/aids-config";
+import { buildAidsOutputInstruction } from "@/lib/chat/aids-prompt";
+import { createAidsStreamFilter } from "@/lib/chat/aids-stream";
 import {
   toChatMessageDTO,
   toChatSessionDTO,
@@ -150,6 +157,7 @@ export function createAssistantStream({
     async start(streamController) {
       let closed = false;
       let partial = "";
+      let raw = "";
 
       const send = (event: string, data: unknown) => {
         if (closed) return;
@@ -207,7 +215,32 @@ export function createAssistantStream({
         ).catch(() => null);
         if (compressed) context.compression = compressed;
 
-        const built = buildChatPrompt(context, { userName });
+        const aidsConfig = resolveAidsConfig(context.style?.config);
+        const aidsEnabled =
+          aidsConfig.enabledStatus ||
+          aidsConfig.enabledGoal ||
+          aidsConfig.enabledOptions;
+        // 结构化输出需要整段 JSON，无法安全夹带隐藏区块，保留原来的单独生成兜底。
+        // 「纯文本」格式并没有限制返回结构，仍然可以和主回复合并。
+        const hasStructuredOutput = Boolean(
+          context.schema && context.schema.mode !== "text",
+        );
+        const combineAids = aidsEnabled && !hasStructuredOutput;
+        const aidsFilter = combineAids ? createAidsStreamFilter() : null;
+        // 把上一轮结构化状态带回提示词，避免好感度、地点等信息每轮被重置。
+        const previousAids = [...context.branch]
+          .reverse()
+          .find(
+            (message) =>
+              message.role === "assistant" &&
+              message.metadata?.aids?.configKey === aidsConfig.key,
+          )?.metadata?.aids;
+        const built = buildChatPrompt(context, {
+          userName,
+          interactionInstruction: combineAids
+            ? buildAidsOutputInstruction(aidsConfig, previousAids)
+            : undefined,
+        });
         const apiKey = decryptSecret(provider.apiKeyEnc);
 
         let finishReason: string | null = null;
@@ -233,18 +266,52 @@ export function createAssistantStream({
           signal: controller.signal,
         })) {
           if (event.type === "delta") {
-            partial += event.content;
-            send("delta", { content: event.content });
+            raw += event.content;
+            if (aidsFilter) {
+              const visible = aidsFilter.consume(event.content);
+              if (visible) {
+                partial += visible;
+                send("delta", { content: visible });
+              }
+            } else {
+              partial += event.content;
+              send("delta", { content: event.content });
+            }
           } else {
             finishReason = event.reason;
             usage = event.usage;
           }
         }
 
+        if (aidsFilter) {
+          const trailing = aidsFilter.finish();
+          if (trailing) {
+            partial += trailing;
+            send("delta", { content: trailing });
+          }
+        }
+
+        const content = aidsFilter ? partial.trimEnd() : partial;
         const parsed = parseStructured(
-          partial,
+          content,
           context.schema?.schema ?? null,
         );
+
+        let aids: ChatAids | undefined;
+        if (aidsFilter && aidsFilter.aidsRaw.trim()) {
+          try {
+            const generated = parseGeneratedAids(
+              aidsFilter.aidsRaw,
+              aidsConfig,
+              context.session.model ?? provider.model,
+            );
+            if (isAidsComplete(generated, aidsConfig)) {
+              aids = generated;
+            }
+          } catch {
+            // 模型没有按格式返回时，保留空结果，让前端按旧流程补一次。
+          }
+        }
 
         const metadata: MessageMetadata = {
           model: context.session.model ?? provider.model,
@@ -255,19 +322,20 @@ export function createAssistantStream({
           usage,
           structuredValid: parsed.valid,
           schemaErrors: parsed.errors.length > 0 ? parsed.errors : undefined,
+          ...(aids ? { aids } : {}),
         };
 
         await getDb()
           .update(messages)
           .set({
-            content: partial,
-            rawContent: partial,
+            content,
+            rawContent: raw || partial,
             structured: parsed.structured,
             status: "complete",
             metadata,
             tokensIn: built.estimatedTokens,
             tokensOut:
-              usage?.completionTokens ?? estimateTokens(partial),
+              usage?.completionTokens ?? estimateTokens(raw || partial),
           })
           .where(eq(messages.id, assistantId));
 

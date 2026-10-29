@@ -25,6 +25,27 @@ export type PromptBlock = {
   marker?: "char" | "user" | "persona" | "worldbook" | "chat_history" | "author_note";
 };
 
+export type ChatAidStatus = {
+  label: string;
+  value: string;
+};
+
+export type ChatAidOption = {
+  style: string;
+  text: string;
+};
+
+/** AI 在每轮回复后整理的互动信息，存放在 assistant 消息的 metadata 中。 */
+export type ChatAids = {
+  status?: ChatAidStatus[];
+  goal?: string;
+  options?: ChatAidOption[];
+  generatedAt?: string;
+  model?: string;
+  /** 生成时的互动配置签名，样式变更后前端会据此重新生成 */
+  configKey?: string;
+};
+
 export type StyleConfig = {
   layout?: "bubble" | "novel" | "messenger" | "document";
   userBubble?: string;
@@ -41,6 +62,20 @@ export type StyleConfig = {
   maxWidth?: number;
   /** 是否把引号内的动作描写渲染为旁白 */
   narrationQuotes?: boolean;
+  /** 显示 AI 整理的人物状态标签 */
+  showStatusTags?: boolean;
+  /** 自定义状态标签名称，例如 情绪 / 好感度 / 地点 */
+  statusTags?: string[];
+  /** 每个状态标签的说明，告诉 AI 它代表什么、如何取值和变化 */
+  statusTagNotes?: Record<string, string>;
+  /** 显示当前对话目标 */
+  showGoal?: boolean;
+  /** 在最新回复后显示可点击的回复选项 */
+  showReplyOptions?: boolean;
+  /** 回复选项的风格列表 */
+  replyOptionStyles?: string[];
+  /** 每次生成的回复选项数量 */
+  replyOptionCount?: number;
   [key: string]: unknown;
 };
 
@@ -100,6 +135,8 @@ export type MessageMetadata = {
   structuredValid?: boolean;
   schemaErrors?: string[];
   thoughts?: string;
+  /** 状态标签、对话目标与回复选项 */
+  aids?: ChatAids;
   usage?: {
     promptTokens?: number;
     completionTokens?: number;

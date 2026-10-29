@@ -134,6 +134,13 @@ export type TemplateOption = {
   avatarUrl?: string | null;
 };
 
+export type ProviderOption = TemplateOption & {
+  /** 供应商的默认模型 */
+  model: string;
+  /** 供应商维护的全部可用模型 */
+  models: string[] | null;
+};
+
 /** 对话模板编辑器可引用的资源，均由服务端按当前用户过滤。 */
 export type TemplateOptions = {
   characters: TemplateOption[];
@@ -143,7 +150,7 @@ export type TemplateOptions = {
   schemas: TemplateOption[];
   personas: TemplateOption[];
   themes: TemplateOption[];
-  providers: TemplateOption[];
+  providers: ProviderOption[];
 };
 
 export type WorldbookEntryDTO = {

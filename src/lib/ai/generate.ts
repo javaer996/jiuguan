@@ -2,10 +2,12 @@ import { jsonrepair } from "jsonrepair";
 import { ApiError } from "@/lib/api";
 import {
   buildGenerationPrompt,
+  DEFAULT_GENERATION_PROMPTS,
   parseAiDraft,
   type AiDraftByKind,
   type AiKind,
 } from "@/lib/ai/drafts";
+import { getGenerationPromptSettings } from "@/lib/ai/prompt-settings";
 import { streamCompletion } from "@/lib/ai/openai";
 import { decryptSecret } from "@/lib/crypto/secretbox";
 import { resolveProvider } from "@/lib/providers/resolve";
@@ -65,7 +67,14 @@ export async function generateAiDraft<K extends AiKind>({
     );
   }
 
-  const { system, user } = buildGenerationPrompt(kind, idea);
+  const promptSettings = await getGenerationPromptSettings().catch(
+    () => DEFAULT_GENERATION_PROMPTS,
+  );
+  const kindPrompt = promptSettings.kinds[kind];
+  const { system, user } = buildGenerationPrompt(kind, idea, {
+    sharedRules: promptSettings.sharedRules,
+    ...kindPrompt,
+  });
   const apiKey = decryptSecret(provider.apiKeyEnc);
   let raw = "";
 

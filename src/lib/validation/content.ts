@@ -135,6 +135,19 @@ export const styleConfigSchema = z.looseObject({
   backgroundDim: z.number().min(0).max(100).optional(),
   maxWidth: z.number().min(400).max(1600).optional(),
   narrationQuotes: z.boolean().optional(),
+  showStatusTags: z.boolean().optional(),
+  statusTags: z.array(z.string().trim().min(1).max(16)).max(12).optional(),
+  statusTagNotes: z
+    .record(z.string().max(16), z.string().max(300))
+    .refine((notes) => Object.keys(notes).length <= 12, "状态说明条目过多")
+    .optional(),
+  showGoal: z.boolean().optional(),
+  showReplyOptions: z.boolean().optional(),
+  replyOptionStyles: z
+    .array(z.string().trim().min(1).max(16))
+    .max(8)
+    .optional(),
+  replyOptionCount: z.number().int().min(1).max(6).optional(),
 });
 
 export const chatStyleInputSchema = z.object({

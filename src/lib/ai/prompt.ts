@@ -343,7 +343,11 @@ function blockContent(
 
 export function buildChatPrompt(
   context: ChatContext,
-  options: { userName: string },
+  options: {
+    userName: string;
+    /** 主回复末尾附带的互动信息输出规则 */
+    interactionInstruction?: string;
+  },
 ): BuiltPrompt {
   const session = context.session;
   const settings = session.settings ?? {};
@@ -526,6 +530,12 @@ export function buildChatPrompt(
         message: { role: "system", content: `【作者注】\n${authorNote.trim()}` },
       });
     }
+  }
+
+  // 互动信息跟随主回复一起生成，放在最后提醒模型只追加隐藏区块。
+  const interactionInstruction = options.interactionInstruction?.trim();
+  if (interactionInstruction) {
+    post.push({ role: "system", content: interactionInstruction });
   }
 
   // 按深度注入的世界书条目

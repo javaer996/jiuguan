@@ -11,6 +11,7 @@ import {
   Shield,
   SlidersHorizontal,
   Users,
+  Wand2,
 } from "lucide-react";
 import { getDb } from "@/db";
 import { inviteCodes, plazaTemplates, users } from "@/db/schema";
@@ -84,6 +85,14 @@ export default async function AdminPage() {
       href: "/admin/providers",
       icon: Cpu,
       stat: "管理共享与授权",
+      ready: true,
+    },
+    {
+      title: "创作提示词",
+      description: "查看并调整 AI 生成角色卡、世界书等使用的默认提示词。",
+      href: "/admin/ai-prompts",
+      icon: Wand2,
+      stat: "仅管理员可见",
       ready: true,
     },
     {

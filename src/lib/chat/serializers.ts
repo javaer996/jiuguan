@@ -88,6 +88,7 @@ export function toProviderInfo(row: ProviderRow): ChatProviderInfo {
     id: row.id,
     name: row.name,
     model: row.model,
+    models: row.models ?? null,
     contextWindow: row.contextWindow,
   };
 }

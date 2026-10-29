@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -11,18 +11,26 @@ import {
   Square,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  ChatReplyOptions,
+  ChatStatusStrip,
+} from "@/components/chat/chat-aids";
 import { ChatMemoryDialog } from "@/components/chat/chat-memory-dialog";
 import { ChatMessage } from "@/components/chat/chat-message";
 import { ChatSettingsDialog } from "@/components/chat/chat-settings-dialog";
+import { useShellTheme } from "@/components/layout/shell-theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import type { ChatAidOption, ChatAids } from "@/db/schema/types";
+import { resolveAidsConfig } from "@/lib/chat/aids-config";
 import { ApiClientError, apiFetch } from "@/lib/client/api";
 import { readSse } from "@/lib/client/sse";
 import { sanitizeCustomCssSafe } from "@/lib/css/sanitize";
 import {
   sanitizeThemeBackgroundUrlSafe,
+  sanitizeThemeTokensSafe,
   themeTokensToStyle,
 } from "@/lib/theme/tokens";
 import type { ChatDetailDTO, ChatMessageDTO } from "@/lib/types/chat";
@@ -80,8 +88,16 @@ export function ChatView({ initial }: { initial: ChatDetailDTO }) {
   const [pendingUser, setPendingUser] = useState<ChatMessageDTO | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const [aidsLoading, setAidsLoading] = useState(false);
+  const [aidsError, setAidsError] = useState<string | null>(null);
+  const [optionsLoading, setOptionsLoading] = useState(false);
+  const [optionsError, setOptionsError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const aidsRequestRef = useRef(new Set<string>());
+  const aidsInFlightRef = useRef(false);
+  const { setTheme: setShellTheme } = useShellTheme();
 
   const session = detail.session;
   const characterName = detail.character?.name ?? "酒馆";
@@ -94,6 +110,10 @@ export function ChatView({ initial }: { initial: ChatDetailDTO }) {
     const styleCss = sanitizeCustomCssSafe(detail.style?.customCss);
     return [themeCss, styleCss].filter(Boolean).join("\n");
   }, [detail.style?.customCss, detail.theme?.customCss]);
+  const themeTokens = useMemo(
+    () => sanitizeThemeTokensSafe(detail.theme?.tokens),
+    [detail.theme?.tokens],
+  );
   const themeStyle = useMemo(
     () => themeTokensToStyle(detail.theme?.tokens),
     [detail.theme?.tokens],
@@ -103,6 +123,132 @@ export function ChatView({ initial }: { initial: ChatDetailDTO }) {
     [detail.theme?.backgroundUrl],
   );
   const contentWidth = detail.style?.config?.maxWidth ?? 860;
+  const aidsConfig = useMemo(
+    () => resolveAidsConfig(detail.style?.config),
+    [detail.style?.config],
+  );
+  const aidsEnabled =
+    aidsConfig.enabledStatus ||
+    aidsConfig.enabledGoal ||
+    aidsConfig.enabledOptions;
+  const latestAssistant =
+    lastMessage?.role === "assistant" && lastMessage.status === "complete"
+      ? lastMessage
+      : null;
+  const latestAidsMessage = [...detail.messages]
+    .reverse()
+    .find(
+      (message) =>
+        message.role === "assistant" &&
+        message.status === "complete" &&
+        message.metadata?.aids,
+    );
+  const statusAids: ChatAids | undefined =
+    latestAssistant?.metadata?.aids ?? latestAidsMessage?.metadata?.aids;
+  const replyAids: ChatAids | undefined = latestAssistant?.metadata?.aids;
+
+  useEffect(() => {
+    setShellTheme(
+      detail.theme
+        ? { tokens: themeTokens, backgroundUrl: themeBackground }
+        : null,
+    );
+  }, [detail.theme, themeTokens, themeBackground, setShellTheme]);
+
+  useEffect(() => {
+    return () => setShellTheme(null);
+  }, [setShellTheme]);
+
+  const requestAids = useCallback(
+    async (
+      messageId: string,
+      force = false,
+      scope: "all" | "options" = "all",
+    ) => {
+      if (aidsInFlightRef.current) return;
+      aidsInFlightRef.current = true;
+      if (scope === "options") {
+        setOptionsLoading(true);
+        setOptionsError(null);
+      } else {
+        setAidsLoading(true);
+        setAidsError(null);
+        setOptionsError(null);
+      }
+      try {
+        const data = await apiFetch<{ aids: ChatAids }>(
+          `/api/chats/${session.id}/aids`,
+          {
+            method: "POST",
+            body: JSON.stringify({ messageId, force, scope }),
+          },
+        );
+        setDetail((previous) => ({
+          ...previous,
+          messages: previous.messages.map((message) =>
+            message.id === messageId
+              ? {
+                  ...message,
+                  metadata: {
+                    ...(message.metadata ?? {}),
+                    aids: data.aids,
+                  },
+                }
+              : message,
+          ),
+        }));
+      } catch (error) {
+        const message =
+          error instanceof ApiClientError
+            ? error.message
+            : scope === "options"
+              ? "回复选项生成失败，请稍后重试"
+              : "互动信息生成失败，请稍后重试";
+        if (scope === "options") {
+          setOptionsError(message);
+        } else {
+          setAidsError(message);
+        }
+      } finally {
+        aidsInFlightRef.current = false;
+        if (scope === "options") {
+          setOptionsLoading(false);
+        } else {
+          setAidsLoading(false);
+        }
+      }
+    },
+    [session.id],
+  );
+
+  useEffect(() => {
+    if (
+      !aidsEnabled ||
+      streaming ||
+      aidsLoading ||
+      optionsLoading ||
+      !latestAssistant
+    ) {
+      return;
+    }
+    if (latestAssistant.metadata?.aids?.configKey === aidsConfig.key) return;
+    // 开场白是静态插入的，没有对应的主回复调用；为它单独生成会多一次请求。
+    // 等用户发出第一条消息后，状态和选项会随主回复一起返回。
+    if (latestAssistant.metadata?.greeting) return;
+
+    const key = `${latestAssistant.id}:${aidsConfig.key}`;
+    if (aidsRequestRef.current.has(key)) return;
+    aidsRequestRef.current.add(key);
+    void requestAids(latestAssistant.id);
+  }, [
+    aidsEnabled,
+    aidsConfig.key,
+    aidsLoading,
+    latestAssistant,
+    optionsLoading,
+    requestAids,
+    streaming,
+  ]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -141,6 +287,8 @@ export function ChatView({ initial }: { initial: ChatDetailDTO }) {
     setComposer("");
     setStreaming(true);
     setStreamText("");
+    setAidsError(null);
+    setOptionsError(null);
     setPendingUser(makePendingUser(content, session.activeLeafId));
 
     const controller = new AbortController();
@@ -174,6 +322,8 @@ export function ChatView({ initial }: { initial: ChatDetailDTO }) {
     if (streaming) return;
     setStreaming(true);
     setStreamText("");
+    setAidsError(null);
+    setOptionsError(null);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -220,6 +370,17 @@ export function ChatView({ initial }: { initial: ChatDetailDTO }) {
     abortRef.current?.abort();
   }
 
+  function handlePickOption(option: ChatAidOption) {
+    setComposer(option.text);
+    window.requestAnimationFrame(() => {
+      const element = composerRef.current;
+      if (!element) return;
+      element.focus();
+      element.setSelectionRange(element.value.length, element.value.length);
+      element.scrollTop = element.scrollHeight;
+    });
+  }
+
   return (
     <div
       className="zy-chat relative isolate flex h-[calc(100dvh-4rem)] flex-col bg-background font-sans text-foreground lg:h-dvh"
@@ -260,7 +421,9 @@ export function ChatView({ initial }: { initial: ChatDetailDTO }) {
             </h1>
             <p className="truncate text-[10px] text-muted-foreground">
               {characterName}
-              {detail.provider ? ` · ${detail.provider.model}` : " · 未配置供应商"}
+              {detail.provider
+                ? ` · ${session.model ?? detail.provider.model}`
+                : " · 未配置供应商"}
             </p>
           </div>
         </div>
@@ -302,6 +465,32 @@ export function ChatView({ initial }: { initial: ChatDetailDTO }) {
           </Link>
         </div>
       )}
+
+      {(aidsConfig.enabledStatus || aidsConfig.enabledGoal) &&
+        (latestAssistant || statusAids) && (
+          <div className="shrink-0 border-b border-border/40 bg-background/70 px-3 py-2 backdrop-blur-md sm:px-5">
+            <div className="mx-auto w-full" style={{ maxWidth: contentWidth }}>
+              <ChatStatusStrip
+                status={
+                  aidsConfig.enabledStatus ? statusAids?.status : undefined
+                }
+                goal={aidsConfig.enabledGoal ? statusAids?.goal : undefined}
+                notes={
+                  aidsConfig.enabledStatus
+                    ? aidsConfig.statusTagNotes
+                    : undefined
+                }
+                loading={aidsLoading}
+                error={aidsError}
+                onRetry={
+                  latestAssistant
+                    ? () => void requestAids(latestAssistant.id, true)
+                    : undefined
+                }
+              />
+            </div>
+          </div>
+        )}
 
       <div className="flex-1 overflow-y-auto">
         <div
@@ -368,47 +557,65 @@ export function ChatView({ initial }: { initial: ChatDetailDTO }) {
 
       <div className="shrink-0 border-t border-border/60 bg-background/90 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl sm:px-5">
         <div
-          className="mx-auto flex w-full items-end gap-2"
+          className="mx-auto w-full space-y-2"
           style={{ maxWidth: contentWidth }}
         >
-          <Textarea
-            value={composer}
-            rows={1}
-            placeholder={`对${characterName}说点什么…`}
-            className="max-h-40 min-h-11 resize-none rounded-xl border-border/70 bg-card/85 py-3 dark:bg-card/85"
-            onChange={(event) => setComposer(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                void handleSend();
-              }
-            }}
-          />
-          {streaming ? (
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-11 shrink-0 rounded-xl"
-              onClick={stop}
-              aria-label="停止生成"
-            >
-              <Square className="size-4" />
-            </Button>
-          ) : (
-            <Button
-              size="icon"
-              className="size-11 shrink-0 rounded-xl shadow-glow"
-              onClick={() => void handleSend()}
-              disabled={!composer.trim()}
-              aria-label="发送"
-            >
-              <Send className="size-4" />
-            </Button>
-          )}
+          {aidsConfig.enabledOptions &&
+            latestAssistant &&
+            !streaming &&
+            !pendingUser && (
+              <ChatReplyOptions
+                options={replyAids?.options}
+                loading={aidsLoading || optionsLoading}
+                error={optionsError}
+                onPick={handlePickOption}
+                onRetry={() =>
+                  void requestAids(latestAssistant.id, true, "options")
+                }
+              />
+            )}
+
+          <div className="flex w-full items-end gap-2">
+            <Textarea
+              ref={composerRef}
+              value={composer}
+              rows={1}
+              placeholder={`对${characterName}说点什么…`}
+              className="max-h-40 min-h-11 resize-none rounded-xl border-border/70 bg-card/85 py-3 dark:bg-card/85"
+              onChange={(event) => setComposer(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  void handleSend();
+                }
+              }}
+            />
+            {streaming ? (
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-11 shrink-0 rounded-xl"
+                onClick={stop}
+                aria-label="停止生成"
+              >
+                <Square className="size-4" />
+              </Button>
+            ) : (
+              <Button
+                size="icon"
+                className="size-11 shrink-0 rounded-xl shadow-glow"
+                onClick={() => void handleSend()}
+                disabled={!composer.trim()}
+                aria-label="发送"
+              >
+                <Send className="size-4" />
+              </Button>
+            )}
+          </div>
+          <p className="text-center text-[10px] text-muted-foreground/50">
+            Enter 发送 · Shift + Enter 换行 · 故事由你与角色共同写成
+          </p>
         </div>
-        <p className="mx-auto mt-1.5 max-w-3xl text-center text-[10px] text-muted-foreground/50">
-          Enter 发送 · Shift + Enter 换行 · 故事由你与角色共同写成
-        </p>
       </div>
 
       {settingsOpen && (

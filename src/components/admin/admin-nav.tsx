@@ -10,6 +10,7 @@ import {
   ScrollText,
   SlidersHorizontal,
   Users,
+  Wand2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ const ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/admin/users", label: "用户", icon: Users },
   { href: "/admin/invites", label: "邀请码", icon: KeyRound },
   { href: "/admin/providers", label: "共享 API", icon: Cpu },
+  { href: "/admin/ai-prompts", label: "创作提示词", icon: Wand2 },
   { href: "/admin/settings", label: "系统设置", icon: SlidersHorizontal },
   { href: "/admin/audit", label: "审计日志", icon: ScrollText },
 ];

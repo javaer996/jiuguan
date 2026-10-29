@@ -56,6 +56,7 @@ export type ChatProviderInfo = {
   id: string;
   name: string;
   model: string;
+  models: string[] | null;
   contextWindow: number;
 };
 

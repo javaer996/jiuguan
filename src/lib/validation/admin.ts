@@ -43,8 +43,35 @@ export const adminSettingsSchema = z.object({
   siteNotice: z.string().trim().max(2000).default(""),
 });
 
+const generationKindPromptSchema = z.object({
+  system: z.string().trim().max(50_000).default(""),
+  user: z
+    .string()
+    .trim()
+    .min(5, "用户消息模板太短")
+    .max(20_000)
+    .refine(
+      (value) => value.includes("{{idea}}"),
+      "用户消息模板必须包含 {{idea}} 占位符",
+    ),
+});
+
+export const adminGenerationPromptsSchema = z.object({
+  sharedRules: z.string().trim().max(20_000).default(""),
+  kinds: z.object({
+    character: generationKindPromptSchema,
+    worldbook: generationKindPromptSchema,
+    prompt: generationKindPromptSchema,
+    style: generationKindPromptSchema,
+    theme: generationKindPromptSchema,
+  }),
+});
+
 export type AdminUserUpdateInput = z.infer<typeof adminUserUpdateSchema>;
 export type AdminInviteCreateInput = z.infer<typeof adminInviteCreateSchema>;
 export type AdminInviteUpdateInput = z.infer<typeof adminInviteUpdateSchema>;
 export type AdminGrantInput = z.infer<typeof adminGrantSchema>;
 export type AdminSettingsInput = z.infer<typeof adminSettingsSchema>;
+export type AdminGenerationPromptsInput = z.infer<
+  typeof adminGenerationPromptsSchema
+>;

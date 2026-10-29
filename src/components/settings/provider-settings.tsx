@@ -10,6 +10,7 @@ import {
   RefreshCw,
   Star,
   Trash2,
+  X,
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -119,12 +120,41 @@ function ProviderDialog({
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [fetchingModels, setFetchingModels] = useState(false);
+  const [modelDraft, setModelDraft] = useState("");
 
   function set<K extends keyof ProviderForm>(
     key: K,
     value: ProviderForm[K],
   ) {
     setForm((previous) => ({ ...previous, [key]: value }));
+  }
+
+  function addModel() {
+    const value = modelDraft.trim();
+    if (!value) return;
+    if (value.length > 128) {
+      toast.error("模型名不能超过 128 个字符");
+      return;
+    }
+    if (form.models.length >= 200 && !form.models.includes(value)) {
+      toast.error("一个供应商最多保存 200 个模型");
+      return;
+    }
+    if (!form.models.includes(value)) {
+      set("models", [...form.models, value]);
+    }
+    if (!form.model.trim() || form.models.length === 0) {
+      set("model", value);
+    }
+    setModelDraft("");
+  }
+
+  function removeModel(model: string) {
+    const next = form.models.filter((item) => item !== model);
+    set("models", next);
+    if (form.model === model) {
+      set("model", next[0] ?? "");
+    }
   }
 
   async function handleSave() {
@@ -140,12 +170,20 @@ function ProviderDialog({
 
     setSaving(true);
     try {
+      const defaultModel = form.model.trim();
+      const modelList = [
+        ...new Set(
+          [defaultModel, ...form.models.map((item) => item.trim())].filter(
+            Boolean,
+          ),
+        ),
+      ].slice(0, 200);
       const payload = {
         name: form.name.trim(),
         baseUrl: form.baseUrl.trim(),
         apiKey: form.apiKey.trim() || undefined,
-        model: form.model.trim(),
-        models: form.models.length > 0 ? form.models : undefined,
+        model: defaultModel,
+        models: modelList.length > 0 ? modelList : undefined,
         temperature: Number(form.temperature) || 0,
         topP: Number(form.topP) || 1,
         maxTokens: Number(form.maxTokens) || 2048,
@@ -206,11 +244,14 @@ function ProviderDialog({
           }),
         },
       );
-      set("models", data.models);
-      if (!data.models.includes(form.model)) {
-        set("model", data.models[0]!);
+      const models = [...new Set(data.models)];
+      set("models", models);
+      if (models.length === 0) {
+        toast.message("接口没有返回可用模型，请手动填写模型名");
+      } else if (!models.includes(form.model)) {
+        set("model", models[0]!);
       }
-      toast.success(`已拉取 ${data.models.length} 个模型`);
+      toast.success(`已拉取 ${models.length} 个模型`);
     } catch (error) {
       toast.error(
         error instanceof ApiClientError ? error.message : "拉取模型失败",
@@ -233,9 +274,10 @@ function ProviderDialog({
           `${result.result.message} · ${result.result.latencyMs}ms`,
         );
         if (result.result.models?.length) {
-          set("models", result.result.models);
-          if (!result.result.models.includes(form.model)) {
-            set("model", result.result.models[0]!);
+          const models = [...new Set(result.result.models)];
+          set("models", models);
+          if (!models.includes(form.model)) {
+            set("model", models[0]!);
           }
         }
       } else {
@@ -275,7 +317,7 @@ function ProviderDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="provider-model">模型</Label>
+              <Label htmlFor="provider-model">默认模型</Label>
               <div className="flex gap-2">
                 <Input
                   id="provider-model"
@@ -306,26 +348,76 @@ function ProviderDialog({
                   <option key={model} value={model} />
                 ))}
               </datalist>
+              <p className="text-[11px] text-muted-foreground">
+                默认模型用于新对话；其他模型可在对话设置中单独选择。
+              </p>
               {form.models.length > 0 && (
-                <div className="flex max-h-24 flex-wrap gap-1 overflow-y-auto rounded-lg border border-border/50 bg-background/30 p-1.5">
-                  {form.models.map((model) => (
-                    <button
-                      key={model}
-                      type="button"
-                      title={model}
-                      onClick={() => set("model", model)}
-                      className={cn(
-                        "max-w-full truncate rounded-md px-1.5 py-0.5 text-[10px] transition-colors",
-                        form.model === model
-                          ? "bg-primary/15 text-primary"
-                          : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-                      )}
-                    >
-                      {model}
-                    </button>
-                  ))}
+                <div className="max-h-32 overflow-y-auto rounded-lg border border-border/50 bg-background/30 p-1.5">
+                  <p className="mb-1 px-1 text-[10px] text-muted-foreground">
+                    可选模型 {form.models.length} 个 · 点击设为默认
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {form.models.map((model) => (
+                      <span
+                        key={model}
+                        className={cn(
+                          "inline-flex max-w-full items-center gap-0.5 rounded-md pr-0.5 text-[10px] transition-colors",
+                          form.model === model
+                            ? "bg-primary/15 text-primary"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                        )}
+                      >
+                        <button
+                          type="button"
+                          title={`设为默认：${model}`}
+                          onClick={() => set("model", model)}
+                          className="flex min-w-0 items-center gap-1 px-1.5 py-0.5"
+                        >
+                          {form.model === model && (
+                            <Star className="size-2.5 shrink-0 fill-current" />
+                          )}
+                          <span className="truncate">{model}</span>
+                        </button>
+                        <button
+                          type="button"
+                          title="从列表移除"
+                          aria-label={`移除模型 ${model}`}
+                          onClick={() => removeModel(model)}
+                          className="rounded p-0.5 hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <X className="size-2.5" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
+              <div className="flex gap-2">
+                <Input
+                  value={modelDraft}
+                  maxLength={128}
+                  placeholder="手动添加模型名"
+                  className="h-8 min-w-0 flex-1 text-xs"
+                  onChange={(event) => setModelDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addModel();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 rounded-lg"
+                  onClick={addModel}
+                  disabled={!modelDraft.trim()}
+                >
+                  <Plus />
+                  添加
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -660,7 +752,12 @@ export function ProviderSettings({
         </div>
       ) : (
         <div className="space-y-3">
-          {providers.map((provider) => (
+          {providers.map((provider) => {
+            const modelCount = new Set([
+              provider.model,
+              ...(provider.models ?? []),
+            ]).size;
+            return (
             <div
               key={provider.id}
               className={cn(
@@ -691,6 +788,14 @@ export function ProviderSettings({
                         共享
                       </Badge>
                     )}
+                    {modelCount > 1 && (
+                      <Badge
+                        variant="outline"
+                        className="px-1.5 py-0 text-[10px] font-normal text-muted-foreground"
+                      >
+                        {modelCount} 个模型
+                      </Badge>
+                    )}
                     <Badge
                       variant="outline"
                       className={cn(
@@ -704,7 +809,8 @@ export function ProviderSettings({
                     </Badge>
                   </div>
                   <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                    {provider.model} · {provider.baseUrl}
+                    默认 {provider.model} · 共 {modelCount} 个模型 ·{" "}
+                    {provider.baseUrl}
                   </p>
                   <p className="mt-1 text-[10px] text-muted-foreground/80">
                     密钥 {provider.apiKeyHint ?? "已保存"}
@@ -803,8 +909,9 @@ export function ProviderSettings({
                     {provider.lastCheckMessage}
                   </p>
                 )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
 

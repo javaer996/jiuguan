@@ -45,6 +45,17 @@ export type StylePreset = {
   config: StyleConfig;
 };
 
+export const DEFAULT_STATUS_TAGS = ["情绪", "好感度", "地点"];
+
+export const DEFAULT_REPLY_OPTION_STYLES = [
+  "温柔",
+  "试探",
+  "坚定",
+  "俏皮",
+];
+
+export const DEFAULT_REPLY_OPTION_COUNT = 3;
+
 export const STYLE_PRESETS: StylePreset[] = [
   {
     key: "tavern",
@@ -58,6 +69,33 @@ export const STYLE_PRESETS: StylePreset[] = [
       lineHeight: 1.8,
       maxWidth: 860,
       narrationQuotes: true,
+    },
+  },
+  {
+    key: "immersive",
+    name: "沉浸互动",
+    description:
+      "在对话上方显示人物状态与目标，每轮回复后给出不同风格的可选回复。",
+    config: {
+      layout: "bubble",
+      showAvatars: true,
+      showTimestamps: true,
+      fontSize: 16,
+      lineHeight: 1.8,
+      maxWidth: 860,
+      narrationQuotes: true,
+      showStatusTags: true,
+      statusTags: [...DEFAULT_STATUS_TAGS],
+      statusTagNotes: {
+        情绪: "用 2-6 个字概括角色此刻最主要的情绪，不要替用户描述。",
+        好感度:
+          "用 0-100 的整数表示角色对用户的好感，可附一个态度词；根据最近对话中的言行缓慢变化。",
+        地点: "角色当前所在的具体位置，优先沿用对话中已经出现的地点。",
+      },
+      showGoal: true,
+      showReplyOptions: true,
+      replyOptionStyles: [...DEFAULT_REPLY_OPTION_STYLES],
+      replyOptionCount: DEFAULT_REPLY_OPTION_COUNT,
     },
   },
   {
