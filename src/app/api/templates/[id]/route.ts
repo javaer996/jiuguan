@@ -4,6 +4,7 @@ import { characters, chatTemplates } from "@/db/schema";
 import { ApiError, handleApiError, jsonOk, readJson } from "@/lib/api";
 import { assertSameOrigin } from "@/lib/auth/csrf";
 import { requireUser } from "@/lib/auth/guard";
+import { stripDebugMode } from "@/lib/chat/settings";
 import { assertTemplateRefs } from "@/lib/content/refs";
 import { toChatTemplateDTO } from "@/lib/content/serializers";
 import { chatTemplateInputSchema } from "@/lib/validation/content";
@@ -74,7 +75,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
         outputSchemaId: input.outputSchemaId ?? null,
         personaId: input.personaId ?? null,
         providerId: input.providerId ?? null,
-        settings: input.settings as typeof chatTemplates.$inferInsert.settings,
+        settings: stripDebugMode(
+          input.settings,
+        ) as typeof chatTemplates.$inferInsert.settings,
         greetingIndex: input.greetingIndex ?? 0,
       })
       .where(

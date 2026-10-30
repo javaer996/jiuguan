@@ -9,6 +9,7 @@ import {
   loadChatContext,
   toChatDetailDTO,
 } from "@/lib/chat/context";
+import { clearDebugSnapshot } from "@/lib/chat/debug";
 import { toChatSessionDTO } from "@/lib/chat/serializers";
 import { assertTemplateRefs } from "@/lib/content/refs";
 import { resolveProvider } from "@/lib/providers/resolve";
@@ -35,6 +36,25 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     const { id } = await params;
     const session = await findOwnedSession(id, context.user.id);
     const input = await readJson(request, chatUpdateSchema);
+
+    if (input.settings?.debugMode === true && context.user.role !== "admin") {
+      throw new ApiError(403, "FORBIDDEN", "只有管理员可以开启调试模式");
+    }
+
+    const nextSettings =
+      input.settings === undefined
+        ? undefined
+        : input.settings === null
+          ? null
+          : {
+              ...input.settings,
+              ...(context.user.role !== "admin" ? { debugMode: false } : {}),
+            };
+    const previousDebug = session.settings?.debugMode === true;
+    const nextDebug = nextSettings?.debugMode === true;
+    if (input.settings !== undefined && previousDebug !== nextDebug) {
+      clearDebugSnapshot(session.id);
+    }
 
     const worldbookIds =
       input.worldbookIds === undefined
@@ -103,7 +123,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
           ? { personaId: input.personaId }
           : {}),
         ...(worldbookIds !== undefined ? { worldbookIds } : {}),
-        ...(input.settings !== undefined ? { settings: input.settings } : {}),
+        ...(nextSettings !== undefined ? { settings: nextSettings } : {}),
       })
       .where(
         and(
@@ -142,6 +162,7 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     const context = await requireUser();
     const { id } = await params;
     await findOwnedSession(id, context.user.id);
+    clearDebugSnapshot(id);
 
     await getDb()
       .update(chatSessions)

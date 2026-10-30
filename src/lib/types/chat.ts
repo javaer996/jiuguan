@@ -100,6 +100,41 @@ export type ChatDetailDTO = {
   options: TemplateOptions;
 };
 
+export type ChatDebugRequestDTO = {
+  providerName: string | null;
+  model: string;
+  estimatedTokens: number;
+  worldbookHits: { entryId: string; name: string; tokens: number }[];
+  messages: { role: "system" | "user" | "assistant"; content: string }[];
+  /** 实际发送给供应商的 JSON body；null 表示请求在发出前就失败了 */
+  body: Record<string, unknown> | null;
+};
+
+export type ChatDebugResponseDTO = {
+  /** 供应商流式返回的原始文本，未做任何解析 */
+  raw: string;
+  /** 经过隐藏区块/结构化解析后的最终内容 */
+  content: string;
+  finishReason: string | null;
+  usage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
+  latencyMs: number;
+  error?: string;
+};
+
+export type ChatDebugSnapshotDTO = {
+  sessionId: string;
+  assistantId: string;
+  status: "complete" | "error";
+  createdAt: string;
+  completedAt: string;
+  request: ChatDebugRequestDTO;
+  response: ChatDebugResponseDTO;
+};
+
 export type ChatStreamMeta = {
   sessionId: string;
   assistantId: string;

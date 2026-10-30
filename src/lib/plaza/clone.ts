@@ -12,6 +12,7 @@ import {
   worldbookEntries,
 } from "@/db/schema";
 import type { TemplateSnapshot } from "@/db/schema/types";
+import { stripDebugMode } from "@/lib/chat/settings";
 
 type CloneMeta = {
   title: string;
@@ -195,7 +196,7 @@ export async function cloneSnapshotToUser(
       themeId,
       outputSchemaId,
       personaId,
-      settings: snapshot.settings ?? null,
+      settings: stripDebugMode(snapshot.settings ?? null),
       greetingIndex: snapshot.greetingIndex ?? 0,
     });
 

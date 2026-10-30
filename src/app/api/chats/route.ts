@@ -15,6 +15,7 @@ import { ApiError, handleApiError, jsonOk, readJson } from "@/lib/api";
 import { assertSameOrigin } from "@/lib/auth/csrf";
 import { requireUser } from "@/lib/auth/guard";
 import { toChatSessionDTO } from "@/lib/chat/serializers";
+import { stripDebugMode } from "@/lib/chat/settings";
 import { parseLimit } from "@/lib/content/query";
 import { assertTemplateRefs } from "@/lib/content/refs";
 import { resolveProvider } from "@/lib/providers/resolve";
@@ -63,6 +64,10 @@ export async function POST(request: Request) {
     assertSameOrigin(request);
     const context = await requireUser();
     const input = await readJson(request, chatCreateSchema);
+
+    if (input.settings?.debugMode === true && context.user.role !== "admin") {
+      throw new ApiError(403, "FORBIDDEN", "只有管理员可以开启调试模式");
+    }
 
     const db = getDb();
     let template = null;
@@ -207,7 +212,7 @@ export async function POST(request: Request) {
         : null;
 
     const settings = {
-      ...(template?.settings ?? {}),
+      ...(stripDebugMode(template?.settings) ?? {}),
       ...(input.settings ?? {}),
     };
 

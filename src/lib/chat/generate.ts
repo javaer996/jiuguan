@@ -3,6 +3,10 @@ import { getDb } from "@/db";
 import { chatSessions, messages } from "@/db/schema";
 import type { ChatAids, MessageMetadata } from "@/db/schema/types";
 import { buildChatPrompt, estimateTokens } from "@/lib/ai/prompt";
+import {
+  beginDebugRequest,
+  saveDebugSnapshot,
+} from "@/lib/chat/debug";
 import { maybeAutoCompress } from "@/lib/chat/memory";
 import { streamCompletion } from "@/lib/ai/openai";
 import { decryptSecret } from "@/lib/crypto/secretbox";
@@ -19,7 +23,11 @@ import {
   toChatMessageDTO,
   toChatSessionDTO,
 } from "@/lib/chat/serializers";
-import type { ChatStreamDone, ChatStreamMeta } from "@/lib/types/chat";
+import type {
+  ChatDebugRequestDTO,
+  ChatStreamDone,
+  ChatStreamMeta,
+} from "@/lib/types/chat";
 
 type AssistantStreamArgs = {
   context: ChatContext;
@@ -27,6 +35,8 @@ type AssistantStreamArgs = {
   parentId: string | null;
   userName: string;
   requestSignal: AbortSignal;
+  /** 仅管理员且会话开启调试模式时为 true */
+  debug?: boolean;
 };
 
 const encoder = new TextEncoder();
@@ -148,6 +158,7 @@ export function createAssistantStream({
   parentId,
   userName,
   requestSignal,
+  debug = false,
 }: AssistantStreamArgs): Response {
   const controller = new AbortController();
   const onAbort = () => controller.abort();
@@ -158,6 +169,17 @@ export function createAssistantStream({
       let closed = false;
       let partial = "";
       let raw = "";
+      let debugRequest: ChatDebugRequestDTO | null = null;
+      let finishReason: string | null = null;
+      let usage:
+        | {
+            promptTokens?: number;
+            completionTokens?: number;
+            totalTokens?: number;
+          }
+        | undefined;
+
+      if (debug) beginDebugRequest(context.session.id);
 
       const send = (event: string, data: unknown) => {
         if (closed) return;
@@ -243,14 +265,16 @@ export function createAssistantStream({
         });
         const apiKey = decryptSecret(provider.apiKeyEnc);
 
-        let finishReason: string | null = null;
-        let usage:
-          | {
-              promptTokens?: number;
-              completionTokens?: number;
-              totalTokens?: number;
-            }
-          | undefined;
+        if (debug) {
+          debugRequest = {
+            providerName: provider.name,
+            model: context.session.model ?? provider.model,
+            estimatedTokens: built.estimatedTokens,
+            worldbookHits: built.hits,
+            messages: built.messages,
+            body: null,
+          };
+        }
 
         for await (const event of streamCompletion({
           baseUrl: provider.baseUrl,
@@ -264,6 +288,11 @@ export function createAssistantStream({
           frequencyPenalty: built.frequencyPenalty,
           responseFormat: built.responseFormat,
           signal: controller.signal,
+          onRequest: debug
+            ? (body) => {
+                if (debugRequest) debugRequest.body = body;
+              }
+            : undefined,
         })) {
           if (event.type === "delta") {
             raw += event.content;
@@ -311,6 +340,24 @@ export function createAssistantStream({
           } catch {
             // 模型没有按格式返回时，保留空结果，让前端按旧流程补一次。
           }
+        }
+
+        if (debug && debugRequest) {
+          saveDebugSnapshot({
+            sessionId: context.session.id,
+            assistantId,
+            status: "complete",
+            createdAt: new Date(startedAt).toISOString(),
+            completedAt: new Date().toISOString(),
+            request: debugRequest,
+            response: {
+              raw,
+              content,
+              finishReason,
+              usage,
+              latencyMs: Date.now() - startedAt,
+            },
+          });
         }
 
         const metadata: MessageMetadata = {
@@ -426,6 +473,24 @@ export function createAssistantStream({
         } else {
           const message =
             error instanceof Error ? error.message : "生成失败，请稍后再试";
+          if (debug && debugRequest) {
+            saveDebugSnapshot({
+              sessionId: context.session.id,
+              assistantId,
+              status: "error",
+              createdAt: new Date(startedAt).toISOString(),
+              completedAt: new Date().toISOString(),
+              request: debugRequest,
+              response: {
+                raw,
+                content: partial,
+                finishReason,
+                usage,
+                latencyMs: Date.now() - startedAt,
+                error: message,
+              },
+            });
+          }
           await finalizeError(
             assistantId,
             partial,

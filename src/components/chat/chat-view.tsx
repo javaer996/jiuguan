@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Brain,
+  Bug,
   Send,
   Settings2,
   Square,
@@ -15,6 +16,7 @@ import {
   ChatReplyOptions,
   ChatStatusStrip,
 } from "@/components/chat/chat-aids";
+import { ChatDebugDialog } from "@/components/chat/chat-debug-dialog";
 import { ChatMemoryDialog } from "@/components/chat/chat-memory-dialog";
 import { ChatMessage } from "@/components/chat/chat-message";
 import { ChatSettingsDialog } from "@/components/chat/chat-settings-dialog";
@@ -80,7 +82,13 @@ function streamingMessage(content: string): ChatMessageDTO {
   };
 }
 
-export function ChatView({ initial }: { initial: ChatDetailDTO }) {
+export function ChatView({
+  initial,
+  isAdmin,
+}: {
+  initial: ChatDetailDTO;
+  isAdmin: boolean;
+}) {
   const [detail, setDetail] = useState(initial);
   const [composer, setComposer] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -88,6 +96,7 @@ export function ChatView({ initial }: { initial: ChatDetailDTO }) {
   const [pendingUser, setPendingUser] = useState<ChatMessageDTO | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(false);
   const [aidsLoading, setAidsLoading] = useState(false);
   const [aidsError, setAidsError] = useState<string | null>(null);
   const [optionsLoading, setOptionsLoading] = useState(false);
@@ -435,6 +444,18 @@ export function ChatView({ initial }: { initial: ChatDetailDTO }) {
           >
             {session.messageCount} 条
           </Badge>
+          {isAdmin && session.settings?.debugMode === true && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-xl"
+              onClick={() => setDebugOpen(true)}
+              aria-label="最新请求调试"
+              title="最新请求调试"
+            >
+              <Bug />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -624,7 +645,16 @@ export function ChatView({ initial }: { initial: ChatDetailDTO }) {
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
           detail={detail}
+          isAdmin={isAdmin}
           onSaved={refresh}
+        />
+      )}
+
+      {debugOpen && (
+        <ChatDebugDialog
+          open={debugOpen}
+          onOpenChange={setDebugOpen}
+          sessionId={session.id}
         />
       )}
 

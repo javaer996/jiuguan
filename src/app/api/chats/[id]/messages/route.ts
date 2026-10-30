@@ -64,6 +64,9 @@ export async function POST(request: Request, { params }: RouteParams) {
       parentId: userId,
       userName: context.user.displayName,
       requestSignal: request.signal,
+      debug:
+        context.user.role === "admin" &&
+        freshSession.settings?.debugMode === true,
     });
   } catch (error) {
     return handleApiError(error);

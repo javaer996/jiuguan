@@ -34,5 +34,7 @@ export default async function ChatDetailPage({
 
   if (!detail) notFound();
 
-  return <ChatView initial={detail} />;
+  return (
+    <ChatView initial={detail} isAdmin={context.user.role === "admin"} />
+  );
 }

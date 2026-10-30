@@ -24,6 +24,7 @@ import {
   toOutputSchemaSnapshot,
   toPersonaSnapshot,
 } from "@/lib/chat/serializers";
+import { stripDebugMode } from "@/lib/chat/settings";
 
 type TemplateRow = typeof chatTemplates.$inferSelect;
 type WorldbookRow = typeof worldbooks.$inferSelect;
@@ -275,7 +276,7 @@ export async function buildTemplateSnapshot(
     theme: themeSnapshot,
     outputSchema: schema ? toOutputSchemaSnapshot(schema) : null,
     persona: persona ? toPersonaSnapshot(persona) : null,
-    settings: template.settings ?? undefined,
+    settings: stripDebugMode(template.settings) ?? undefined,
     greetingIndex: template.greetingIndex,
     source: {
       format: "jiuguan",

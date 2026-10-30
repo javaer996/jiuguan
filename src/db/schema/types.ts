@@ -93,6 +93,8 @@ export type SessionSettings = {
   /** preset：跟随提示词预设中的作者注块；custom：使用 authorNoteDepth */
   authorNoteMode?: "preset" | "custom";
   authorNoteDepth?: number;
+  /** 仅管理员可用：在内存中保留最近一次请求的原始内容用于调试 */
+  debugMode?: boolean;
   autoTitle?: boolean;
   /** 是否把会话记忆注入提示词，默认开启 */
   memoryEnabled?: boolean;

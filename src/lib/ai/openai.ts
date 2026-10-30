@@ -27,6 +27,8 @@ export type CompletionParams = {
   stop?: string[];
   responseFormat?: ResponseFormat | null;
   signal?: AbortSignal;
+  /** 调试用：在请求真正发出前拿到实际 JSON body */
+  onRequest?: (body: Record<string, unknown>) => void;
 };
 
 export type CompletionEvent =
@@ -103,6 +105,8 @@ async function requestCompletion(
   if (includeResponseFormat && params.responseFormat) {
     body.response_format = params.responseFormat;
   }
+
+  params.onRequest?.(body);
 
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   const signal = params.signal

@@ -13,6 +13,7 @@ export const sessionSettingsSchema = z.looseObject({
   authorNote: z.string().max(20_000).optional(),
   authorNoteMode: z.enum(["preset", "custom"]).optional(),
   authorNoteDepth: z.number().int().min(0).max(100).optional(),
+  debugMode: z.boolean().optional(),
   autoTitle: z.boolean().optional(),
   memoryEnabled: z.boolean().optional(),
   compressionEnabled: z.boolean().optional(),

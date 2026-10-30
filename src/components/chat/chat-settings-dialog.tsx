@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, SlidersHorizontal } from "lucide-react";
+import { Bug, Loader2, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiClientError, apiFetch } from "@/lib/client/api";
 import type { ChatDetailDTO } from "@/lib/types/chat";
@@ -38,11 +39,13 @@ export function ChatSettingsDialog({
   open,
   onOpenChange,
   detail,
+  isAdmin,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   detail: ChatDetailDTO;
+  isAdmin: boolean;
   onSaved: () => Promise<void> | void;
 }) {
   const settings = detail.session.settings ?? {};
@@ -78,6 +81,7 @@ export function ChatSettingsDialog({
   );
   const [authorNoteDepthMode, setAuthorNoteDepthMode] =
     useState<AuthorNoteDepthMode>(settings.authorNoteMode ?? "preset");
+  const [debugMode, setDebugMode] = useState(settings.debugMode === true);
   const [saving, setSaving] = useState(false);
 
   const selectedProvider = detail.options.providers.find(
@@ -139,6 +143,7 @@ export function ChatSettingsDialog({
               authorNoteDepthMode === "custom"
                 ? authorNoteDepth
                 : undefined,
+            debugMode: isAdmin ? debugMode : false,
           },
         }),
       });
@@ -432,6 +437,36 @@ export function ChatSettingsDialog({
                 : "0 表示紧跟在最后一条消息之后；数字越大越靠前。"}
             </p>
           </div>
+
+          {isAdmin && (
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.04] p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <Label className="flex items-center gap-1.5 text-xs">
+                    <Bug className="size-3.5 text-amber-500" />
+                    调试模式
+                    <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-normal text-amber-600 dark:text-amber-400">
+                      仅管理员
+                    </span>
+                  </Label>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    开启后，对话页顶部会出现调试按钮，可查看最近一次请求发送给
+                    AI 的原始内容和 AI 的原始响应。只保留最新一次，不写入数据库。
+                  </p>
+                </div>
+                <Switch
+                  checked={debugMode}
+                  onCheckedChange={setDebugMode}
+                  aria-label="开启调试模式"
+                />
+              </div>
+              {debugMode && (
+                <p className="mt-2 rounded-lg bg-amber-500/[0.06] px-2 py-1.5 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">
+                  调试内容包含完整提示词和模型输出，请勿在共享环境中长期开启。
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
