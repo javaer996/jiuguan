@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import {
   ArrowUpRight,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -102,23 +103,23 @@ function OptionCard({
 }) {
   const content = (
     <>
-      <span className="inline-flex rounded-full bg-primary/12 px-2 py-0.5 text-[10px] font-medium text-primary">
+      <span className="inline-flex rounded-full bg-primary/12 px-1.5 py-0.5 text-[9px] font-medium leading-none text-primary">
         {option.style}
       </span>
-      <span className="mt-1.5 line-clamp-3 block text-xs leading-relaxed text-foreground">
+      <span className="mt-1 line-clamp-2 text-xs leading-snug text-foreground">
         {option.text}
       </span>
       {interactive && (
-        <ArrowUpRight className="absolute top-2.5 right-2.5 size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+        <ArrowUpRight className="absolute top-2 right-2 size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
       )}
     </>
   );
 
   const cardClassName = cn(
-    "zy-aid-option relative min-w-0 rounded-xl border border-border/60 bg-card/75 p-3 text-left backdrop-blur-sm transition-all",
+    "zy-aid-option relative flex min-w-0 flex-col items-start rounded-xl border border-border/60 bg-card/75 px-2.5 py-2 text-left backdrop-blur-sm transition-colors",
     interactive &&
       !disabled &&
-      "group hover:-translate-y-0.5 hover:border-primary/40 hover:bg-card/90 hover:shadow-soft",
+      "group cursor-pointer hover:border-primary/45 hover:bg-card/95 hover:shadow-soft focus-visible:ring-2 focus-visible:ring-primary/45 focus-visible:ring-inset focus-visible:outline-none",
     disabled && "pointer-events-none opacity-60",
     className,
   );
@@ -140,6 +141,47 @@ function OptionCard({
   );
 }
 
+const REPLY_OPTIONS_COLLAPSED_KEY = "zy-reply-options-collapsed";
+const REPLY_OPTIONS_CHANGE_EVENT = "zy-reply-options-change";
+let collapsedMemory = false;
+
+function subscribeReplyOptions(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(REPLY_OPTIONS_CHANGE_EVENT, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(REPLY_OPTIONS_CHANGE_EVENT, callback);
+  };
+}
+
+function getReplyOptionsCollapsed() {
+  if (typeof window === "undefined") return false;
+  try {
+    const stored = window.localStorage.getItem(REPLY_OPTIONS_COLLAPSED_KEY);
+    if (stored !== null) return stored === "1";
+  } catch {
+    // 隐私模式下 localStorage 不可用，退回内存状态。
+  }
+  return collapsedMemory;
+}
+
+function getReplyOptionsCollapsedServer() {
+  return false;
+}
+
+function setReplyOptionsCollapsed(next: boolean) {
+  collapsedMemory = next;
+  try {
+    window.localStorage.setItem(
+      REPLY_OPTIONS_COLLAPSED_KEY,
+      next ? "1" : "0",
+    );
+  } catch {
+    // 隐私模式下无法持久化，只影响本次会话。
+  }
+  window.dispatchEvent(new Event(REPLY_OPTIONS_CHANGE_EVENT));
+}
+
 export function ChatReplyOptions({
   options,
   loading = false,
@@ -158,9 +200,17 @@ export function ChatReplyOptions({
   className?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const storedCollapsed = useSyncExternalStore(
+    subscribeReplyOptions,
+    getReplyOptionsCollapsed,
+    getReplyOptionsCollapsedServer,
+  );
   const hasOptions = Boolean(options?.length);
   const showScrollControls =
     !compact && !loading && (options?.length ?? 0) > 3;
+  const collapsible = !compact;
+  const collapsed = collapsible && storedCollapsed;
+  const showBody = !collapsed;
 
   if (!loading && !error && !hasOptions) return null;
 
@@ -173,14 +223,44 @@ export function ChatReplyOptions({
     });
   }
 
+  function toggleCollapsed() {
+    setReplyOptionsCollapsed(!collapsed);
+  }
+
   return (
-    <div className={cn("space-y-2", className)}>
+    <div className={cn("space-y-1.5", className)}>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
-          可选回复
-        </p>
+        {collapsible ? (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-expanded={!collapsed}
+            title={collapsed ? "展开可选回复" : "收起可选回复"}
+            className="-m-1 inline-flex items-center gap-1 rounded-md p-1 text-[10px] tracking-[0.18em] text-muted-foreground uppercase transition-colors hover:text-foreground"
+          >
+            <span>可选回复</span>
+            {hasOptions && (
+              <span className="tracking-normal text-muted-foreground/60">
+                · {options!.length}
+              </span>
+            )}
+            <ChevronDown
+              className={cn(
+                "size-3 transition-transform",
+                !collapsed && "rotate-180",
+              )}
+            />
+          </button>
+        ) : (
+          <p className="text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
+            可选回复
+          </p>
+        )}
         <div className="flex items-center gap-2">
-          {showScrollControls && (
+          {collapsed && loading && (
+            <Loader2 className="size-3 animate-spin text-muted-foreground" />
+          )}
+          {showBody && showScrollControls && (
             <div className="hidden items-center gap-0.5 sm:flex">
               <button
                 type="button"
@@ -200,7 +280,7 @@ export function ChatReplyOptions({
               </button>
             </div>
           )}
-          {onRetry && !loading && hasOptions && (
+          {showBody && onRetry && !loading && hasOptions && (
             <button
               type="button"
               onClick={onRetry}
@@ -213,15 +293,15 @@ export function ChatReplyOptions({
         </div>
       </div>
 
-      {hasOptions ? (
+      {showBody && hasOptions ? (
         <div
           ref={scrollRef}
           className={cn(
             "gap-2",
             compact
               ? "grid"
-              : // 超过三张时保持单行左右滑动，不再换行堆高消息区。
-                "flex snap-x snap-mandatory overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+              : // 超过三张时保持单行左右滑动；上下留白避免悬停/聚焦边框被裁切。
+                "flex snap-x snap-mandatory overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           )}
           aria-label={compact ? undefined : "回复选项，横向滑动查看更多"}
         >
@@ -242,7 +322,7 @@ export function ChatReplyOptions({
         </div>
       ) : null}
 
-      {loading && (
+      {showBody && loading && (
         <div
           className={cn(
             "gap-2",
@@ -250,7 +330,7 @@ export function ChatReplyOptions({
               ? "hidden"
               : compact
                 ? "grid"
-                : "flex overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+                : "flex overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
           )}
           aria-hidden
         >
@@ -258,12 +338,12 @@ export function ChatReplyOptions({
             <div
               key={index}
               className={cn(
-                "space-y-2 rounded-xl border border-border/50 bg-card/50 p-3",
+                "space-y-2 rounded-xl border border-border/50 bg-card/50 px-2.5 py-2",
                 !compact &&
                   "w-[82%] shrink-0 sm:w-[calc((100%-1rem)/3)]",
               )}
             >
-              <div className="h-4 w-12 animate-pulse rounded-full bg-primary/15" />
+              <div className="h-3 w-10 animate-pulse rounded-full bg-primary/15" />
               <div className="h-3 w-full animate-pulse rounded bg-secondary/70" />
               <div className="h-3 w-2/3 animate-pulse rounded bg-secondary/70" />
             </div>
@@ -271,7 +351,7 @@ export function ChatReplyOptions({
         </div>
       )}
 
-      {loading && hasOptions && (
+      {showBody && loading && hasOptions && (
         <p className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
           <Loader2 className="size-3 animate-spin" />
           正在换一组回复…
