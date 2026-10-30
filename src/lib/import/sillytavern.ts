@@ -16,6 +16,9 @@ export type ImportedWorldbook = {
   scanDepth: number;
   tokenBudget: number;
   recursive: boolean;
+  maxRecursionDepth: number;
+  caseSensitive: boolean;
+  matchWholeWords: boolean;
   entries: WorldbookEntryInput[];
 };
 
@@ -56,6 +59,12 @@ function asNumber(value: unknown): number | null {
 
 function asBoolean(value: unknown): boolean {
   return value === true || value === "true" || value === 1;
+}
+
+/** 缺省 / null 表示继承世界书设置，而不是显式关闭。 */
+function asInheritableBoolean(value: unknown): boolean | null {
+  if (value === undefined || value === null || value === "") return null;
+  return asBoolean(value);
 }
 
 function clampInt(value: unknown, fallback: number, min: number, max: number) {
@@ -213,8 +222,8 @@ function normalizeEntry(
     useProbability:
       raw.useProbability === undefined ? true : asBoolean(raw.useProbability),
     enabled: raw.disable === undefined ? raw.enabled !== false : !asBoolean(raw.disable),
-    caseSensitive: asBoolean(raw.caseSensitive),
-    matchWholeWords: asBoolean(raw.matchWholeWords),
+    caseSensitive: asInheritableBoolean(raw.caseSensitive),
+    matchWholeWords: asInheritableBoolean(raw.matchWholeWords),
     groupName: asString(raw.group ?? raw.groupName) || null,
     groupWeight: clampInt(raw.groupWeight, 100, 0, 10_000),
     excludeRecursion: asBoolean(raw.excludeRecursion),
@@ -279,6 +288,9 @@ export function normalizeWorldbook(
     scanDepth: clampInt(raw.scanDepth, 4, 0, 50),
     tokenBudget: clampInt(raw.tokenBudget, 2048, 0, 100_000),
     recursive: asBoolean(raw.recursive),
+    maxRecursionDepth: clampInt(raw.maxRecursionDepth, 2, 0, 10),
+    caseSensitive: asBoolean(raw.caseSensitive),
+    matchWholeWords: asBoolean(raw.matchWholeWords),
     entries,
   };
 }

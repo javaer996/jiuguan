@@ -126,8 +126,10 @@ export const worldbookEntries = mysqlTable(
     probability: int("probability", { unsigned: true }).notNull().default(100),
     useProbability: boolean("use_probability").notNull().default(true),
     enabled: boolean("enabled").notNull().default(true),
-    caseSensitive: boolean("case_sensitive").notNull().default(false),
-    matchWholeWords: boolean("match_whole_words").notNull().default(false),
+    /** null 表示继承世界书设置 */
+    caseSensitive: boolean("case_sensitive"),
+    /** null 表示继承世界书设置 */
+    matchWholeWords: boolean("match_whole_words"),
     groupName: varchar("group_name", { length: 64 }),
     groupWeight: int("group_weight").notNull().default(100),
     excludeRecursion: boolean("exclude_recursion").notNull().default(false),

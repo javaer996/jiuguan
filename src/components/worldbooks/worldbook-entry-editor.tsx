@@ -54,8 +54,10 @@ type EntryDraft = {
   probability: number;
   useProbability: boolean;
   enabled: boolean;
-  caseSensitive: boolean;
-  matchWholeWords: boolean;
+  /** null 表示继承世界书 */
+  caseSensitive: boolean | null;
+  /** null 表示继承世界书 */
+  matchWholeWords: boolean | null;
   groupName: string;
   groupWeight: number;
   excludeRecursion: boolean;
@@ -171,15 +173,61 @@ function ToggleRow({
   );
 }
 
+function InheritSelect({
+  label,
+  description,
+  value,
+  inheritedValue,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  value: boolean | null;
+  inheritedValue: boolean;
+  onChange: (value: boolean | null) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/30 px-3 py-2.5">
+      <span className="min-w-0">
+        <span className="block text-xs font-medium">{label}</span>
+        <span className="mt-0.5 block text-[10px] leading-relaxed text-muted-foreground">
+          {description}
+        </span>
+      </span>
+      <Select
+        value={value === null ? "inherit" : value ? "on" : "off"}
+        onValueChange={(next) =>
+          onChange(next === "inherit" ? null : next === "on")
+        }
+      >
+        <SelectTrigger className="h-8 w-[8.5rem] shrink-0 rounded-lg bg-background/50 text-xs">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="inherit">
+            继承世界书（{inheritedValue ? "开启" : "关闭"}）
+          </SelectItem>
+          <SelectItem value="on">开启</SelectItem>
+          <SelectItem value="off">关闭</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 export function WorldbookEntryEditor({
   worldbookId,
   entry,
+  bookCaseSensitive,
+  bookMatchWholeWords,
   onSaved,
   onDeleted,
   onDirtyChange,
 }: {
   worldbookId: string;
   entry: WorldbookEntryDTO;
+  bookCaseSensitive: boolean;
+  bookMatchWholeWords: boolean;
   onSaved: (entry: WorldbookEntryDTO) => void;
   onDeleted: (entryId: string) => void;
   onDirtyChange: (dirty: boolean) => void;
@@ -437,22 +485,26 @@ export function WorldbookEntryEditor({
                 onCheckedChange={(checked) => set("useProbability", checked)}
               />
               <ToggleRow
-                label="区分大小写"
-                description="关键词匹配时区分大小写。"
-                checked={draft.caseSensitive}
-                onCheckedChange={(checked) => set("caseSensitive", checked)}
-              />
-              <ToggleRow
-                label="全词匹配"
-                description="仅匹配完整单词。"
-                checked={draft.matchWholeWords}
-                onCheckedChange={(checked) => set("matchWholeWords", checked)}
-              />
-              <ToggleRow
                 label="需要次关键词"
                 description="同时检查次关键词逻辑。"
                 checked={draft.selective}
                 onCheckedChange={(checked) => set("selective", checked)}
+              />
+            </div>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              <InheritSelect
+                label="区分大小写"
+                description="留空继承世界书；显式开启或关闭会覆盖世界书设置。"
+                value={draft.caseSensitive}
+                inheritedValue={bookCaseSensitive}
+                onChange={(value) => set("caseSensitive", value)}
+              />
+              <InheritSelect
+                label="全词匹配"
+                description="留空继承世界书；仅匹配完整单词。"
+                value={draft.matchWholeWords}
+                inheritedValue={bookMatchWholeWords}
+                onChange={(value) => set("matchWholeWords", value)}
               />
             </div>
           </div>
@@ -482,6 +534,9 @@ export function WorldbookEntryEditor({
                   placeholder="选填"
                   className="h-9 rounded-xl bg-background/50"
                 />
+                <p className="text-[10px] leading-relaxed text-muted-foreground">
+                  同组条目最终只注入一个，权重越高越容易被选中。
+                </p>
               </div>
               <NumberField
                 label="分组权重"
@@ -507,6 +562,9 @@ export function WorldbookEntryEditor({
                   placeholder="继承世界书"
                   className="h-9 rounded-xl bg-background/50"
                 />
+                <p className="text-[10px] leading-relaxed text-muted-foreground">
+                  留空继承世界书；只影响关键词扫描范围，0 按 1 条处理。
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">独立 Token 预算</Label>
@@ -525,13 +583,16 @@ export function WorldbookEntryEditor({
                   placeholder="继承世界书"
                   className="h-9 rounded-xl bg-background/50"
                 />
+                <p className="text-[10px] leading-relaxed text-muted-foreground">
+                  留空继承世界书；条目内容超过预算时不会注入。
+                </p>
               </div>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-3">
               <ToggleRow
                 label="排除递归"
-                description="其他条目触发时不参与递归。"
+                description="不会被递归扫描激活。"
                 checked={draft.excludeRecursion}
                 onCheckedChange={(checked) =>
                   set("excludeRecursion", checked)
@@ -547,7 +608,7 @@ export function WorldbookEntryEditor({
               />
               <ToggleRow
                 label="延迟到递归"
-                description="仅在递归扫描时激活。"
+                description="首次扫描不激活，只在递归时参与。"
                 checked={draft.delayUntilRecursion}
                 onCheckedChange={(checked) =>
                   set("delayUntilRecursion", checked)

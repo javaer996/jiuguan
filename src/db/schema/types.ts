@@ -90,6 +90,8 @@ export type SessionSettings = {
   contextWindow?: number;
   maxContextMessages?: number;
   authorNote?: string;
+  /** preset：跟随提示词预设中的作者注块；custom：使用 authorNoteDepth */
+  authorNoteMode?: "preset" | "custom";
   authorNoteDepth?: number;
   autoTitle?: boolean;
   /** 是否把会话记忆注入提示词，默认开启 */
@@ -177,8 +179,10 @@ export type WorldbookEntrySnapshot = {
   probability?: number;
   useProbability?: boolean;
   enabled?: boolean;
-  caseSensitive?: boolean;
-  matchWholeWords?: boolean;
+  /** null 表示继承世界书设置 */
+  caseSensitive?: boolean | null;
+  /** null 表示继承世界书设置 */
+  matchWholeWords?: boolean | null;
   groupName?: string | null;
   groupWeight?: number;
   excludeRecursion?: boolean;

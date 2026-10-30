@@ -114,89 +114,140 @@ function recentScanText(context: ChatContext, depth: number) {
     .join("\n");
 }
 
+type WorldbookEntryRow = ChatContext["worldbooks"][number]["entries"][number];
+
+type WorldbookSectionPosition =
+  | "top"
+  | "before_char"
+  | "after_char"
+  | "before_an"
+  | "after_an"
+  | "bottom";
+
+type WorldbookBudget = {
+  limit: number;
+  used: number;
+};
+
+function toEntrySnapshot(entry: WorldbookEntryRow): WorldbookEntrySnapshot {
+  return {
+    uid: entry.uid,
+    name: entry.name,
+    keys: entry.keys ?? [],
+    secondaryKeys: entry.secondaryKeys ?? [],
+    content: entry.content,
+    constant: entry.constant,
+    selective: entry.selective,
+    selectiveLogic: entry.selectiveLogic,
+    position: entry.position,
+    depth: entry.depth,
+    sortOrder: entry.sortOrder,
+    probability: entry.probability,
+    useProbability: entry.useProbability,
+    enabled: entry.enabled,
+    caseSensitive: entry.caseSensitive,
+    matchWholeWords: entry.matchWholeWords,
+    groupName: entry.groupName,
+    groupWeight: entry.groupWeight,
+    excludeRecursion: entry.excludeRecursion,
+    preventRecursion: entry.preventRecursion,
+    delayUntilRecursion: entry.delayUntilRecursion,
+    scanDepth: entry.scanDepth,
+    tokenBudget: entry.tokenBudget,
+  };
+}
+
+/** 同组条目最终只保留一个，按权重随机选择；常驻条目不参与互斥。 */
+function applyInclusionGroups(
+  entries: WorldbookEntryRow[],
+  activeEntries: Map<string, WorldbookEntryRow>,
+) {
+  const groups = new Map<string, WorldbookEntryRow[]>();
+
+  for (const entry of entries) {
+    if (!entry.groupName || entry.constant || !activeEntries.has(entry.id)) {
+      continue;
+    }
+    const list = groups.get(entry.groupName) ?? [];
+    list.push(entry);
+    groups.set(entry.groupName, list);
+  }
+
+  for (const list of groups.values()) {
+    if (list.length <= 1) continue;
+    const total = list.reduce(
+      (sum, entry) => sum + Math.max(0, entry.groupWeight),
+      0,
+    );
+    let picked = list[0]!;
+    if (total > 0) {
+      let roll = Math.random() * total;
+      for (const entry of list) {
+        roll -= Math.max(0, entry.groupWeight);
+        if (roll <= 0) {
+          picked = entry;
+          break;
+        }
+      }
+    }
+    for (const entry of list) {
+      if (entry.id !== picked.id) activeEntries.delete(entry.id);
+    }
+  }
+}
+
 function activateWorldbooks(context: ChatContext) {
-  const hits: WorldbookHit[] = [];
   const activeByBook = new Map<string, Set<string>>();
 
   for (const { book, entries } of context.worldbooks) {
-    const scanDepth = book.scanDepth ?? DEFAULT_SCAN_DEPTH;
-    const historyText = recentScanText(context, scanDepth);
-    const active = new Set<string>();
-    const activatedContent: string[] = [];
+    const bookScanDepth = book.scanDepth ?? DEFAULT_SCAN_DEPTH;
+    const scanCache = new Map<number, string>();
+    const scanTextFor = (depth: number | null | undefined) => {
+      // 0 和 1 都至少扫描最新一条消息，避免 slice(-0) 变成扫描全部历史。
+      const normalized = Math.max(1, depth ?? bookScanDepth);
+      const cached = scanCache.get(normalized);
+      if (cached !== undefined) return cached;
+      const text = recentScanText(context, normalized);
+      scanCache.set(normalized, text);
+      return text;
+    };
+
+    const activeEntries = new Map<string, WorldbookEntryRow>();
 
     for (const entry of entries) {
-      if (!entry.enabled) continue;
-      const snapshot: WorldbookEntrySnapshot = {
-        uid: entry.uid,
-        name: entry.name,
-        keys: entry.keys ?? [],
-        secondaryKeys: entry.secondaryKeys ?? [],
-        content: entry.content,
-        constant: entry.constant,
-        selective: entry.selective,
-        selectiveLogic: entry.selectiveLogic,
-        position: entry.position,
-        depth: entry.depth,
-        sortOrder: entry.sortOrder,
-        probability: entry.probability,
-        useProbability: entry.useProbability,
-        enabled: entry.enabled,
-        caseSensitive: entry.caseSensitive,
-        matchWholeWords: entry.matchWholeWords,
-        groupName: entry.groupName,
-        groupWeight: entry.groupWeight,
-        excludeRecursion: entry.excludeRecursion,
-        preventRecursion: entry.preventRecursion,
-      };
-
+      if (!entry.enabled || entry.delayUntilRecursion) continue;
+      const snapshot = toEntrySnapshot(entry);
       if (!shouldRoll(snapshot)) continue;
-
-      const constant = entry.constant;
+      const scanText = scanTextFor(entry.scanDepth);
       const matched =
-        constant ||
+        entry.constant ||
         entryMatches(
           snapshot,
-          historyText,
+          scanText,
           book.caseSensitive,
           book.matchWholeWords,
         );
-
-      if (matched) {
-        active.add(entry.id);
-        activatedContent.push(entry.content);
-      }
+      if (matched) activeEntries.set(entry.id, entry);
     }
 
     if (book.recursive) {
       const maxDepth = book.maxRecursionDepth ?? 2;
-      for (let depth = 0; depth < maxDepth; depth += 1) {
-        const triggerText = activatedContent.join("\n");
+      for (let round = 0; round < maxDepth; round += 1) {
+        // 阻止递归的条目可以注入，但它的内容不再作为下一轮触发文本。
+        const triggerText = [...activeEntries.values()]
+          .filter((entry) => !entry.preventRecursion)
+          .map((entry) => entry.content)
+          .join("\n");
         if (!triggerText) break;
+
         let added = false;
-
         for (const entry of entries) {
-          if (active.has(entry.id) || !entry.enabled) continue;
-          if (entry.preventRecursion) continue;
-          if (!shouldRoll({
-            name: entry.name,
-            keys: entry.keys ?? [],
-            content: entry.content,
-          })) {
-            continue;
-          }
-
-          const snapshot: WorldbookEntrySnapshot = {
-            name: entry.name,
-            keys: entry.keys ?? [],
-            secondaryKeys: entry.secondaryKeys ?? [],
-            content: entry.content,
-            selective: entry.selective,
-            selectiveLogic: entry.selectiveLogic,
-            caseSensitive: entry.caseSensitive,
-            matchWholeWords: entry.matchWholeWords,
-          };
-
+          if (activeEntries.has(entry.id) || !entry.enabled) continue;
+          if (entry.excludeRecursion) continue;
+          const snapshot = toEntrySnapshot(entry);
+          if (!shouldRoll(snapshot)) continue;
           if (
+            entry.constant ||
             entryMatches(
               snapshot,
               triggerText,
@@ -204,8 +255,7 @@ function activateWorldbooks(context: ChatContext) {
               book.matchWholeWords,
             )
           ) {
-            active.add(entry.id);
-            activatedContent.push(entry.content);
+            activeEntries.set(entry.id, entry);
             added = true;
           }
         }
@@ -214,54 +264,68 @@ function activateWorldbooks(context: ChatContext) {
       }
     }
 
-    activeByBook.set(book.id, active);
+    applyInclusionGroups(entries, activeEntries);
+    activeByBook.set(book.id, new Set(activeEntries.keys()));
   }
 
-  return { activeByBook, hits };
+  return { activeByBook };
+}
+
+function normalizeWorldbookPosition(
+  position: string | undefined,
+): WorldbookSectionPosition | "at_depth" {
+  switch (position) {
+    case "top":
+    case "before_char":
+    case "after_char":
+    case "before_an":
+    case "after_an":
+    case "at_depth":
+    case "bottom":
+      return position;
+    default:
+      return "after_char";
+  }
+}
+
+function createWorldbookBudget(context: ChatContext): WorldbookBudget {
+  let limit = Number.POSITIVE_INFINITY;
+  for (const { book } of context.worldbooks) {
+    if (book.tokenBudget && book.tokenBudget > 0) {
+      limit = Math.min(limit, book.tokenBudget);
+    }
+  }
+  return { limit, used: 0 };
 }
 
 function worldbookSection(
   context: ChatContext,
   activeByBook: Map<string, Set<string>>,
-  position: "top" | "before_char" | "after_char" | "bottom",
+  position: WorldbookSectionPosition,
   variables: Record<string, string>,
   hits: WorldbookHit[],
+  budget: WorldbookBudget,
 ) {
   const parts: string[] = [];
-  let budget = Number.POSITIVE_INFINITY;
 
-  for (const { book } of context.worldbooks) {
-    if (book.tokenBudget && book.tokenBudget > 0) {
-      budget = Math.min(budget, book.tokenBudget);
-    }
-  }
-
-  let used = 0;
   for (const { book, entries } of context.worldbooks) {
     const active = activeByBook.get(book.id);
     if (!active || active.size === 0) continue;
 
     for (const entry of entries) {
       if (!active.has(entry.id)) continue;
-      const entryPosition = entry.position ?? "after_char";
-      const normalizedPosition =
-        entryPosition === "before_char" ||
-        entryPosition === "before_an"
-          ? "before_char"
-          : entryPosition === "after_an"
-            ? "after_char"
-            : entryPosition === "top"
-              ? "top"
-              : entryPosition === "bottom"
-                ? "bottom"
-                : "after_char";
-
-      if (normalizedPosition !== position) continue;
+      if (normalizeWorldbookPosition(entry.position) !== position) continue;
 
       const content = applyVariables(entry.content, variables);
+      if (!content.trim()) continue;
       const tokens = estimateTokens(content);
-      if (used + tokens > budget) continue;
-      used += tokens;
+      const entryLimit =
+        entry.tokenBudget && entry.tokenBudget > 0
+          ? entry.tokenBudget
+          : budget.limit;
+      if (tokens > entryLimit) continue;
+      if (budget.used + tokens > budget.limit) continue;
+      budget.used += tokens;
       parts.push(`【${entry.name}】\n${content}`);
 
       if (!hits.some((hit) => hit.entryId === entry.id)) {
@@ -364,6 +428,16 @@ export function buildChatPrompt(
 
   const active = activateWorldbooks(context);
   const hits: WorldbookHit[] = [];
+  const worldbookBudget = createWorldbookBudget(context);
+
+  const authorNote = settings.authorNote
+    ? applyVariables(settings.authorNote, variables)
+    : "";
+  const hasAuthorNote = Boolean(authorNote.trim());
+  const authorNoteDepth =
+    settings.authorNoteMode === "custom"
+      ? settings.authorNoteDepth ?? 4
+      : undefined;
 
   const topWorldbook = worldbookSection(
     context,
@@ -371,6 +445,7 @@ export function buildChatPrompt(
     "top",
     variables,
     hits,
+    worldbookBudget,
   );
   const beforeChar = worldbookSection(
     context,
@@ -378,6 +453,7 @@ export function buildChatPrompt(
     "before_char",
     variables,
     hits,
+    worldbookBudget,
   );
   const afterChar = worldbookSection(
     context,
@@ -385,6 +461,7 @@ export function buildChatPrompt(
     "after_char",
     variables,
     hits,
+    worldbookBudget,
   );
   const bottomWorldbook = worldbookSection(
     context,
@@ -392,11 +469,36 @@ export function buildChatPrompt(
     "bottom",
     variables,
     hits,
+    worldbookBudget,
+  );
+  const beforeAnWorldbook = worldbookSection(
+    context,
+    active.activeByBook,
+    "before_an",
+    variables,
+    hits,
+    worldbookBudget,
+  );
+  const afterAnWorldbook = worldbookSection(
+    context,
+    active.activeByBook,
+    "after_an",
+    variables,
+    hits,
+    worldbookBudget,
   );
 
   const charText = characterSection(context, variables);
   const personaText = personaSection(context, variables);
-  const worldbookText = [topWorldbook, beforeChar, afterChar, bottomWorldbook]
+  const worldbookText = [
+    topWorldbook,
+    beforeChar,
+    // 没有作者注时，before_an / after_an 退回角色设定前后。
+    hasAuthorNote ? "" : beforeAnWorldbook,
+    afterChar,
+    hasAuthorNote ? "" : afterAnWorldbook,
+    bottomWorldbook,
+  ]
     .filter(Boolean)
     .join("\n\n");
 
@@ -406,10 +508,6 @@ export function buildChatPrompt(
       DEFAULT_SYSTEM_PROMPT,
     variables,
   );
-
-  const authorNote = settings.authorNote
-    ? applyVariables(settings.authorNote, variables)
-    : "";
 
   const postInstructions = applyVariables(
     context.preset?.postHistoryInstructions ??
@@ -461,6 +559,7 @@ export function buildChatPrompt(
   const pre: PromptMessage[] = [];
   const post: PromptMessage[] = [];
   const depthInjections: { depth: number; message: PromptMessage }[] = [];
+  let authorNoteMessage: PromptMessage | null = null;
 
   // 基础系统提示词始终保留，避免预设漏掉核心人格设定。
   if (baseSystem.trim()) {
@@ -488,6 +587,9 @@ export function buildChatPrompt(
 
   for (const block of blocks) {
     if (block.marker === "chat_history") continue;
+    // 对话设置里指定了作者注深度时，预设里的作者注块只作为“存在”标记，
+    // 不再重复注入；由下面的统一逻辑按指定深度插入一次。
+    if (block.marker === "author_note" && authorNoteDepth != null) continue;
 
     const content = blockContent(
       block,
@@ -513,22 +615,31 @@ export function buildChatPrompt(
     } else {
       pre.push(message);
     }
+
+    if (block.marker === "author_note") {
+      authorNoteMessage = message;
+    }
   }
 
   if (postInstructions.trim()) {
     post.push({ role: "system", content: postInstructions.trim() });
   }
-  if (authorNote.trim() && !hasAuthorBlock) {
-    if (settings.authorNoteDepth == null) {
-      post.push({
+
+  if (authorNote.trim()) {
+    if (authorNoteDepth != null) {
+      const message: PromptMessage = {
         role: "system",
         content: `【作者注】\n${authorNote.trim()}`,
-      });
-    } else {
-      depthInjections.push({
-        depth: settings.authorNoteDepth ?? 4,
-        message: { role: "system", content: `【作者注】\n${authorNote.trim()}` },
-      });
+      };
+      depthInjections.push({ depth: authorNoteDepth, message });
+      authorNoteMessage = message;
+    } else if (!hasAuthorBlock) {
+      const message: PromptMessage = {
+        role: "system",
+        content: `【作者注】\n${authorNote.trim()}`,
+      };
+      post.push(message);
+      authorNoteMessage = message;
     }
   }
 
@@ -544,14 +655,21 @@ export function buildChatPrompt(
     if (!activeSet) continue;
     for (const entry of entries) {
       if (!activeSet.has(entry.id)) continue;
-      if ((entry.position ?? "after_char") !== "at_depth") continue;
+      if (normalizeWorldbookPosition(entry.position) !== "at_depth") continue;
       const content = applyVariables(entry.content, variables);
       if (!content.trim()) continue;
+      const tokens = estimateTokens(content);
+      const entryLimit =
+        entry.tokenBudget && entry.tokenBudget > 0
+          ? entry.tokenBudget
+          : worldbookBudget.limit;
+      if (tokens > entryLimit) continue;
+      if (worldbookBudget.used + tokens > worldbookBudget.limit) continue;
+      worldbookBudget.used += tokens;
       depthInjections.push({
         depth: entry.depth ?? 4,
         message: { role: "system", content: `【${entry.name}】\n${content}` },
       });
-      const tokens = estimateTokens(content);
       if (!hits.some((hit) => hit.entryId === entry.id)) {
         hits.push({ entryId: entry.id, name: entry.name, tokens });
       }
@@ -585,7 +703,13 @@ export function buildChatPrompt(
 
   const fixedTokens =
     estimateTokens(
-      [...pre, ...post].map((message) => message.content).join("\n"),
+      [
+        ...pre,
+        ...post,
+        ...depthInjections.map((injection) => injection.message),
+      ]
+        .map((message) => message.content)
+        .join("\n"),
     ) + RESERVED_TOKENS;
   const available = Math.max(
     contextWindow - maxTokens - fixedTokens,
@@ -620,6 +744,25 @@ export function buildChatPrompt(
       );
       messages.splice(index, 0, message);
     });
+
+  // before_an / after_an 真正贴近作者注消息，而不是简单并入角色设定前后。
+  if (hasAuthorNote && authorNoteMessage) {
+    const index = messages.indexOf(authorNoteMessage);
+    if (index >= 0) {
+      if (afterAnWorldbook.trim()) {
+        messages.splice(index + 1, 0, {
+          role: "system",
+          content: afterAnWorldbook.trim(),
+        });
+      }
+      if (beforeAnWorldbook.trim()) {
+        messages.splice(index, 0, {
+          role: "system",
+          content: beforeAnWorldbook.trim(),
+        });
+      }
+    }
+  }
 
   const responseFormat: BuiltPrompt["responseFormat"] =
     context.schema && context.schema.mode !== "text"

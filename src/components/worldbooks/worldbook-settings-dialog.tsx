@@ -127,6 +127,9 @@ function WorldbookSettingsForm({
             }
             className="h-9 rounded-xl"
           />
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            扫描最近 N 条用户/角色消息；0 按 1 条处理。
+          </p>
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Token 预算</Label>
@@ -159,7 +162,7 @@ function WorldbookSettingsForm({
           <span>
             <span className="block text-xs font-medium">区分大小写</span>
             <span className="mt-0.5 block text-[10px] text-muted-foreground">
-              关键词匹配默认忽略大小写。
+              条目未单独设置时继承这里；默认忽略大小写。
             </span>
           </span>
           <Switch
@@ -171,7 +174,7 @@ function WorldbookSettingsForm({
           <span>
             <span className="block text-xs font-medium">全词匹配</span>
             <span className="mt-0.5 block text-[10px] text-muted-foreground">
-              避免关键词命中更长的单词。
+              条目未单独设置时继承这里；避免命中更长的单词。
             </span>
           </span>
           <Switch
@@ -194,6 +197,9 @@ function WorldbookSettingsForm({
             }
             className="h-9 rounded-xl"
           />
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            最多继续触发几轮，不是消息扫描深度。
+          </p>
         </div>
       )}
 

@@ -28,6 +28,7 @@ import type { ChatDetailDTO } from "@/lib/types/chat";
 import { cn } from "@/lib/utils";
 
 const NONE = "none";
+type AuthorNoteDepthMode = "preset" | "custom";
 
 function idOrNull(value: string) {
   return value === NONE ? null : value;
@@ -75,6 +76,8 @@ export function ChatSettingsDialog({
   const [authorNoteDepth, setAuthorNoteDepth] = useState(
     settings.authorNoteDepth ?? 4,
   );
+  const [authorNoteDepthMode, setAuthorNoteDepthMode] =
+    useState<AuthorNoteDepthMode>(settings.authorNoteMode ?? "preset");
   const [saving, setSaving] = useState(false);
 
   const selectedProvider = detail.options.providers.find(
@@ -131,7 +134,11 @@ export function ChatSettingsDialog({
             maxTokens,
             maxContextMessages,
             authorNote: authorNote.trim() || undefined,
-            authorNoteDepth,
+            authorNoteMode: authorNoteDepthMode,
+            authorNoteDepth:
+              authorNoteDepthMode === "custom"
+                ? authorNoteDepth
+                : undefined,
           },
         }),
       });
@@ -377,20 +384,53 @@ export function ChatSettingsDialog({
               placeholder="每次生成时注入的额外指令，例如：保持短句，不要替用户行动。"
               onChange={(event) => setAuthorNote(event.target.value)}
             />
-            <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-              <span>注入深度</span>
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                value={authorNoteDepth}
-                className="h-8 w-20"
-                onChange={(event) =>
-                  setAuthorNoteDepth(Number(event.target.value) || 0)
-                }
-              />
-              <span>0 表示紧跟在最后一条消息之后</span>
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_7rem] sm:items-end">
+              <div className="space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground">
+                  注入方式
+                </Label>
+                <Select
+                  value={authorNoteDepthMode}
+                  onValueChange={(value) =>
+                    setAuthorNoteDepthMode(value as AuthorNoteDepthMode)
+                  }
+                >
+                  <SelectTrigger className="h-8 rounded-lg bg-background/50 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="preset">跟随提示词预设</SelectItem>
+                    <SelectItem value="custom">指定深度</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {authorNoteDepthMode === "custom" && (
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="chat-author-note-depth"
+                    className="text-[11px] text-muted-foreground"
+                  >
+                    深度
+                  </Label>
+                  <Input
+                    id="chat-author-note-depth"
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={authorNoteDepth}
+                    className="h-8"
+                    onChange={(event) =>
+                      setAuthorNoteDepth(Number(event.target.value) || 0)
+                    }
+                  />
+                </div>
+              )}
             </div>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              {authorNoteDepthMode === "preset"
+                ? "由提示词预设里的「作者注」块决定位置；没有该块时放在历史之后。"
+                : "0 表示紧跟在最后一条消息之后；数字越大越靠前。"}
+            </p>
           </div>
         </div>
 

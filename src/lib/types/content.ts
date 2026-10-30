@@ -170,8 +170,10 @@ export type WorldbookEntryDTO = {
   probability: number;
   useProbability: boolean;
   enabled: boolean;
-  caseSensitive: boolean;
-  matchWholeWords: boolean;
+  /** null 表示继承世界书设置 */
+  caseSensitive: boolean | null;
+  /** null 表示继承世界书设置 */
+  matchWholeWords: boolean | null;
   groupName: string | null;
   groupWeight: number;
   excludeRecursion: boolean;

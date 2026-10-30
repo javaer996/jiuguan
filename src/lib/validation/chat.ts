@@ -11,6 +11,7 @@ export const sessionSettingsSchema = z.looseObject({
   contextWindow: z.number().int().min(512).max(4_000_000).optional(),
   maxContextMessages: z.number().int().min(2).max(200).optional(),
   authorNote: z.string().max(20_000).optional(),
+  authorNoteMode: z.enum(["preset", "custom"]).optional(),
   authorNoteDepth: z.number().int().min(0).max(100).optional(),
   autoTitle: z.boolean().optional(),
   memoryEnabled: z.boolean().optional(),

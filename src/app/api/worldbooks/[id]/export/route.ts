@@ -61,6 +61,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
       scanDepth: book.scanDepth,
       tokenBudget: book.tokenBudget,
       recursive: book.recursive,
+      maxRecursionDepth: book.maxRecursionDepth,
+      caseSensitive: book.caseSensitive,
+      matchWholeWords: book.matchWholeWords,
       entries: Object.fromEntries(
         entries.map((entry, index) => [
           String(index),

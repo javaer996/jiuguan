@@ -74,8 +74,10 @@ export const worldbookEntryInputSchema = z.object({
   probability: z.number().int().min(0).max(100).optional(),
   useProbability: z.boolean().optional(),
   enabled: z.boolean().optional(),
-  caseSensitive: z.boolean().optional(),
-  matchWholeWords: z.boolean().optional(),
+  /** null / 缺省表示继承世界书 */
+  caseSensitive: z.boolean().nullish(),
+  /** null / 缺省表示继承世界书 */
+  matchWholeWords: z.boolean().nullish(),
   groupName: z.string().trim().max(64).nullish(),
   groupWeight: z.number().int().min(0).max(10_000).optional(),
   excludeRecursion: z.boolean().optional(),

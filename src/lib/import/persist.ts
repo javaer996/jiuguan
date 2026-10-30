@@ -31,8 +31,8 @@ function entryValues(worldbookId: string, entry: WorldbookEntryInput) {
     probability: entry.probability ?? 100,
     useProbability: entry.useProbability ?? true,
     enabled: entry.enabled ?? true,
-    caseSensitive: entry.caseSensitive ?? false,
-    matchWholeWords: entry.matchWholeWords ?? false,
+    caseSensitive: entry.caseSensitive ?? null,
+    matchWholeWords: entry.matchWholeWords ?? null,
     groupName: entry.groupName ?? null,
     groupWeight: entry.groupWeight ?? 100,
     excludeRecursion: entry.excludeRecursion ?? false,
@@ -58,6 +58,9 @@ export async function insertWorldbook(
     scanDepth: book.scanDepth,
     tokenBudget: book.tokenBudget,
     recursive: book.recursive,
+    maxRecursionDepth: book.maxRecursionDepth,
+    caseSensitive: book.caseSensitive,
+    matchWholeWords: book.matchWholeWords,
   });
   await tx.insert(worldbookEntries).values(
     book.entries.map((entry) => entryValues(id, entry)),

@@ -347,6 +347,8 @@ export function WorldbookEditor({
                 key={selectedEntry.id}
                 worldbookId={book.id}
                 entry={selectedEntry}
+                bookCaseSensitive={book.caseSensitive}
+                bookMatchWholeWords={book.matchWholeWords}
                 onSaved={handleSaved}
                 onDeleted={handleDeleted}
                 onDirtyChange={handleDirtyChange}
