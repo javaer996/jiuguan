@@ -60,7 +60,7 @@ export const STYLE_PRESETS: StylePreset[] = [
   {
     key: "tavern",
     name: "暖金酒馆",
-    description: "默认的气泡对话，暖金与深色玻璃，适合大多数情景。",
+    description: "经典圆角气泡、头像与时间，暖金点缀，适合大多数情景。",
     config: {
       layout: "bubble",
       showAvatars: true,
@@ -79,11 +79,12 @@ export const STYLE_PRESETS: StylePreset[] = [
     config: {
       layout: "bubble",
       showAvatars: true,
-      showTimestamps: true,
+      showTimestamps: false,
       fontSize: 16,
       lineHeight: 1.8,
-      maxWidth: 860,
+      maxWidth: 800,
       narrationQuotes: true,
+      accentColor: "#5fa89a",
       showStatusTags: true,
       statusTags: [...DEFAULT_STATUS_TAGS],
       statusTagNotes: {
@@ -99,9 +100,26 @@ export const STYLE_PRESETS: StylePreset[] = [
     },
   },
   {
+    key: "messenger",
+    name: "夜航频道",
+    description:
+      "紧凑的即时通讯气泡，小头像、短行距与贴边时间，像一场深夜手机对话。",
+    config: {
+      layout: "messenger",
+      showAvatars: true,
+      showTimestamps: true,
+      fontSize: 15,
+      lineHeight: 1.65,
+      maxWidth: 760,
+      narrationQuotes: true,
+      accentColor: "#7aa7c7",
+    },
+  },
+  {
     key: "novel",
     name: "夜色小说",
-    description: "去掉气泡与头像，像读一本深夜小说。",
+    description:
+      "去掉气泡与头像，衬线字体、段首缩进与渐变首字下沉，像读一本深夜小说。",
     config: {
       layout: "novel",
       showAvatars: false,
@@ -110,12 +128,17 @@ export const STYLE_PRESETS: StylePreset[] = [
       lineHeight: 2,
       maxWidth: 720,
       narrationQuotes: true,
+      accentColor: "#c9a45c",
+      dropCap: true,
+      dropCapColor: "#c9a45c",
+      dropCapEffect: "gradient",
     },
   },
   {
     key: "letter",
     name: "旧信笺",
-    description: "窄幅信纸排版，适合书信体与慢节奏叙事。",
+    description:
+      "窄幅信纸、双线边框与纸面纹理，首字下沉并带一点微光，适合书信体与慢节奏叙事。",
     config: {
       layout: "document",
       showAvatars: false,
@@ -124,6 +147,10 @@ export const STYLE_PRESETS: StylePreset[] = [
       lineHeight: 1.9,
       maxWidth: 640,
       narrationQuotes: false,
+      accentColor: "#a8644a",
+      dropCap: true,
+      dropCapColor: "#a8644a",
+      dropCapEffect: "glow",
     },
   },
 ];

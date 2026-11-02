@@ -325,8 +325,8 @@
 
   .chat-prose {
     max-width: 68ch;
-    font-size: 16px;
-    line-height: 1.85;
+    font-size: inherit;
+    line-height: inherit;
     word-break: break-word;
   }
 
@@ -357,6 +357,274 @@
   .animation-delay-300 {
     animation-delay: 300ms;
   }
+}
+
+/*
+ * ============================================================
+ * 对话布局
+ * 这些规则不放进 @layer，确保能覆盖组件上的 Tailwind 工具类。
+ * 四种布局需要一眼可辨：气泡 / 即时通讯 / 小说 / 信笺。
+ * ============================================================
+ */
+
+.zy-content {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+/* ---------- 即时通讯：紧凑、贴边、单侧小圆角 ---------- */
+.zy-layout-messenger .zy-message-list {
+  gap: 0.85rem;
+}
+
+.zy-messenger {
+  border-radius: 1rem;
+}
+
+.zy-messenger.zy-bubble-user {
+  border-bottom-right-radius: 0.3rem;
+}
+
+.zy-messenger.zy-bubble-assistant {
+  border-bottom-left-radius: 0.3rem;
+}
+
+.zy-messenger .chat-prose {
+  max-width: none;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.zy-messenger .chat-prose p + p {
+  margin-top: 0.5em;
+}
+
+.zy-layout-messenger .zy-name {
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: none;
+}
+
+/* ---------- 小说：无气泡、衬线、段首缩进 ---------- */
+.zy-layout-novel .zy-message-list {
+  gap: 1.15rem;
+}
+
+.zy-novel {
+  font-family: var(--font-display);
+  color: var(--foreground);
+}
+
+.zy-novel .chat-prose {
+  max-width: none;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.zy-novel .chat-prose > p {
+  text-align: justify;
+  text-indent: 2em;
+}
+
+.zy-novel .chat-prose > p:first-of-type {
+  text-indent: 0;
+}
+
+.zy-novel .chat-prose p + p {
+  margin-top: 0.9em;
+}
+
+.zy-novel-user {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+.zy-novel-user .chat-prose > p {
+  text-align: right;
+  text-indent: 0;
+}
+
+.zy-layout-novel .zy-name {
+  color: color-mix(
+    in srgb,
+    var(--zy-accent, var(--primary)) 70%,
+    var(--muted-foreground)
+  );
+  letter-spacing: 0.3em;
+}
+
+/* ---------- 文档信笺：纸面、双线框、首字下沉 ---------- */
+.zy-layout-document .zy-message-list {
+  gap: 1.35rem;
+}
+
+.zy-document {
+  position: relative;
+  width: 100%;
+  font-family: var(--font-display);
+  background-color: var(--card);
+  background-image:
+    radial-gradient(
+      circle at 1px 1px,
+      color-mix(in srgb, var(--primary) 10%, transparent) 1px,
+      transparent 0
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--card) 94%, white 6%),
+      var(--card)
+    );
+  background-size:
+    16px 16px,
+    100% 100%;
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--border));
+  border-radius: 0.75rem;
+  padding: 1.35rem 1.6rem 2rem;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 28%, transparent),
+    0 18px 40px -32px rgba(0, 0, 0, 0.45);
+}
+
+.zy-document::before {
+  content: "";
+  position: absolute;
+  inset: 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, transparent);
+  border-radius: 0.5rem;
+  pointer-events: none;
+}
+
+.zy-document::after {
+  content: "❦";
+  position: absolute;
+  right: 1.1rem;
+  bottom: 0.45rem;
+  color: color-mix(in srgb, var(--primary) 42%, transparent);
+  font-size: 1rem;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.zy-document .chat-prose {
+  max-width: none;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.zy-document .chat-prose > p {
+  text-align: justify;
+}
+
+.zy-document .chat-prose p + p {
+  margin-top: 0.9em;
+}
+
+.zy-layout-document .zy-name {
+  width: 100%;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--primary) 18%, transparent);
+  padding-bottom: 0.45rem;
+  color: color-mix(
+    in srgb,
+    var(--zy-accent, var(--primary)) 70%,
+    var(--muted-foreground)
+  );
+  letter-spacing: 0.3em;
+}
+
+/* 信笺布局里用户的“回信”便笺比正文窄，标题线也跟着收窄 */
+.zy-message-user.zy-layout-document .zy-name {
+  width: 88%;
+}
+
+.zy-document-note {
+  width: auto;
+  max-width: 88%;
+  padding: 0.9rem 1.1rem 1rem;
+  font-family: var(--font-sans);
+  background-color: color-mix(in srgb, var(--secondary) 62%, transparent);
+  background-image: none;
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.zy-document-note::before {
+  content: none;
+}
+
+.zy-document-note::after {
+  content: "回信";
+  top: -0.6rem;
+  right: 0.9rem;
+  bottom: auto;
+  padding: 0 0.35rem;
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+}
+
+.zy-document-note .chat-prose > p {
+  text-align: left;
+}
+
+@media (max-width: 640px) {
+  .zy-document {
+    padding: 1rem 1.1rem 1.8rem;
+  }
+
+  .zy-document-note {
+    padding: 0.75rem 0.9rem 0.9rem;
+  }
+}
+
+/* ---------- 首字下沉：默认占两行，可配颜色与特效 ---------- */
+.zy-dropcap {
+  display: flow-root;
+}
+
+.zy-dropcap .chat-prose > p:first-of-type::first-letter,
+.zy-dropcap > p:first-of-type::first-letter {
+  float: left;
+  font-family: var(--font-display);
+  font-size: var(--zy-dropcap-size, 3.6em);
+  line-height: 1;
+  font-weight: 600;
+  margin: 0.06em 0.1em 0 0;
+  color: var(--zy-dropcap-color, var(--primary));
+}
+
+.zy-dropcap-gradient .chat-prose > p:first-of-type::first-letter,
+.zy-dropcap-gradient > p:first-of-type::first-letter {
+  background-image: linear-gradient(
+    135deg,
+    var(--zy-dropcap-color, var(--primary)) 5%,
+    var(--rose) 95%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.zy-dropcap-glow .chat-prose > p:first-of-type::first-letter,
+.zy-dropcap-glow > p:first-of-type::first-letter {
+  text-shadow:
+    0 0 0.35em
+      color-mix(
+        in srgb,
+        var(--zy-dropcap-color, var(--primary)) 55%,
+        transparent
+      ),
+    0 0 1em
+      color-mix(
+        in srgb,
+        var(--zy-dropcap-color, var(--primary)) 25%,
+        transparent
+      );
 }
 
 @keyframes fade-in {

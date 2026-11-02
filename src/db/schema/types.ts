@@ -48,8 +48,21 @@ export type ChatAids = {
 
 export type StyleConfig = {
   layout?: "bubble" | "novel" | "messenger" | "document";
+  /** 用户消息的气泡背景 */
   userBubble?: string;
+  /** 角色消息的气泡背景 */
   assistantBubble?: string;
+  /** 以下 *User* / *Assistant* 字段留空时跟随对应的全局设置 */
+  userTextColor?: string;
+  assistantTextColor?: string;
+  userAccentColor?: string;
+  assistantAccentColor?: string;
+  userFontFamily?: string;
+  assistantFontFamily?: string;
+  userFontSize?: number;
+  assistantFontSize?: number;
+  userLineHeight?: number;
+  assistantLineHeight?: number;
   fontFamily?: string;
   fontSize?: number;
   lineHeight?: number;
@@ -62,6 +75,12 @@ export type StyleConfig = {
   maxWidth?: number;
   /** 是否把引号内的动作描写渲染为旁白 */
   narrationQuotes?: boolean;
+  /** 助手消息首字下沉，占两行 */
+  dropCap?: boolean;
+  /** 首字颜色，留空则使用强调色 */
+  dropCapColor?: string;
+  /** 首字特效：纯色、渐变或微光 */
+  dropCapEffect?: "none" | "gradient" | "glow";
   /** 显示 AI 整理的人物状态标签 */
   showStatusTags?: boolean;
   /** 自定义状态标签名称，例如 情绪 / 好感度 / 地点 */

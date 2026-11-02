@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import {
   AlertTriangle,
   ChevronLeft,
@@ -48,9 +49,34 @@ export function ChatMessage({
   const isUser = message.role === "user";
   const isNote = message.role === "note" || message.role === "system";
   const isAssistant = message.role === "assistant";
-  const compact = layout === "messenger";
   const bubble = layout === "bubble" || layout === "messenger";
   const showAvatar = Boolean(config.showAvatars) && !isNote;
+  const showName =
+    !isNote &&
+    (layout === "novel" || layout === "document" || layout === "messenger");
+  const dropCap = Boolean(config.dropCap) && isAssistant;
+  const sideAccent = isUser
+    ? config.userAccentColor || accent
+    : config.assistantAccentColor || accent;
+  const sideTextColor = isUser
+    ? config.userTextColor
+    : config.assistantTextColor;
+  const sideFontFamily = isUser
+    ? config.userFontFamily || config.fontFamily
+    : config.assistantFontFamily || config.fontFamily;
+  const sideFontSize = isUser
+    ? (config.userFontSize ?? config.fontSize ?? 16)
+    : (config.assistantFontSize ?? config.fontSize ?? 16);
+  const sideLineHeight = isUser
+    ? (config.userLineHeight ?? config.lineHeight ?? 1.8)
+    : (config.assistantLineHeight ?? config.lineHeight ?? 1.8);
+  const timeLabel =
+    config.showTimestamps && !streaming
+      ? new Intl.DateTimeFormat("zh-CN", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(new Date(message.createdAt))
+      : null;
 
   if (isNote) {
     return (
@@ -102,27 +128,34 @@ export function ChatMessage({
     <div
       className={cn(
         "zy-message group/message flex w-full gap-3",
+        `zy-layout-${layout}`,
         isUser ? "zy-message-user" : "zy-message-assistant",
         isUser
           ? layout === "bubble" || layout === "messenger"
             ? "flex-row-reverse"
             : "justify-end"
           : "justify-start",
-        compact && "gap-2",
+        layout === "messenger" && "gap-2",
       )}
-      style={{ maxWidth: config.maxWidth ?? 860 }}
+      style={
+        {
+          maxWidth: config.maxWidth ?? 860,
+          "--zy-accent": sideAccent ?? undefined,
+        } as CSSProperties
+      }
     >
       {showAvatar && (
         <Avatar
           className={cn(
-            "zy-avatar mt-1 shrink-0 rounded-xl ring-1 ring-border/50",
-            compact ? "size-7" : "size-9",
+            "zy-avatar mt-1 shrink-0 ring-1 ring-border/50",
+            layout === "messenger" ? "size-7 rounded-lg" : "size-9 rounded-xl",
           )}
         >
           {avatarUrl && <AvatarImage src={avatarUrl} alt="" />}
           <AvatarFallback
             className={cn(
-              "rounded-xl font-display text-xs backdrop-blur-sm",
+              "font-display text-xs backdrop-blur-sm",
+              layout === "messenger" ? "rounded-lg text-[10px]" : "rounded-xl",
               isUser
                 ? "bg-secondary/90 text-muted-foreground"
                 : "bg-card/90 text-primary",
@@ -141,45 +174,71 @@ export function ChatMessage({
           layout === "document" && "w-full",
         )}
       >
-        {!compact && !bubble && (
+        {showName && (
           <p className="zy-name mb-1 text-[10px] tracking-[0.16em] text-muted-foreground/80 uppercase">
-            {name}
+            <span>{name}</span>
+            {layout === "messenger" && timeLabel && (
+              <span className="ml-1.5 text-[9px] tracking-normal text-muted-foreground/50">
+                {timeLabel}
+              </span>
+            )}
           </p>
         )}
 
         <div
           className={cn(
-            "zy-content relative text-left transition-colors",
-            bubble && "zy-bubble border px-4 py-2.5",
-            bubble &&
-              (isUser
-                ? "border-primary/20 bg-primary/[0.08]"
-                : "border-primary/25 bg-card/80 backdrop-blur-sm"),
-            layout === "novel" && "zy-novel border-l-2 border-primary/45",
-            layout === "document" &&
-              "zy-document w-full rounded-xl border border-border/50 bg-card/75 px-5 py-4 shadow-soft backdrop-blur-sm",
-            bubble && (compact ? "rounded-xl" : "rounded-2xl"),
+            "zy-content relative text-left",
+            layout === "bubble" &&
+              cn(
+                "zy-bubble rounded-2xl border px-4 py-2.5",
+                isUser
+                  ? "zy-bubble-user border-primary/20 bg-primary/[0.08]"
+                  : "zy-bubble-assistant border-primary/25 bg-card/80 backdrop-blur-sm",
+              ),
+            layout === "messenger" &&
+              cn(
+                "zy-bubble zy-messenger rounded-xl border px-3.5 py-2 text-[0.94em]",
+                isUser
+                  ? "zy-bubble-user border-primary/25 bg-primary/[0.12]"
+                  : "zy-bubble-assistant border-border/60 bg-card/85",
+              ),
+            layout === "novel" && "zy-novel",
+            layout === "novel" && isUser && "zy-novel-user",
+            layout === "document" && "zy-document w-full",
+            layout === "document" && isUser && "zy-document-note",
+            dropCap && "zy-dropcap",
+            dropCap &&
+              config.dropCapEffect === "gradient" &&
+              "zy-dropcap-gradient",
+            dropCap && config.dropCapEffect === "glow" && "zy-dropcap-glow",
             !bubble && layout !== "document" && "px-0 py-1",
           )}
-          style={{
-            background: bubble
-              ? (isUser ? config.userBubble : config.assistantBubble) || undefined
-              : undefined,
-            borderColor:
-              accent && bubble
-                ? withAlpha(accent, isUser ? 0.18 : 0.24)
-                : accent && layout === "document"
-                  ? withAlpha(accent, 0.2)
-                  : undefined,
-            borderLeft:
-              layout === "novel" && accent
-                ? `2px solid ${withAlpha(accent, 0.45) ?? accent}`
+          style={
+            {
+              background: bubble
+                ? (isUser ? config.userBubble : config.assistantBubble) ||
+                  undefined
                 : undefined,
-            paddingLeft: layout === "novel" ? 14 : undefined,
-            fontSize: config.fontSize ?? 16,
-            lineHeight: config.lineHeight ?? 1.8,
-            fontFamily: config.fontFamily || undefined,
-          }}
+              borderColor: sideAccent
+                ? bubble
+                  ? withAlpha(sideAccent, isUser ? 0.18 : 0.24)
+                  : layout === "document"
+                    ? withAlpha(sideAccent, 0.28)
+                    : undefined
+                : undefined,
+              color: sideTextColor || undefined,
+              ...(dropCap
+                ? {
+                    "--zy-dropcap-color":
+                      config.dropCapColor || sideAccent || undefined,
+                    "--zy-dropcap-size": `${(sideLineHeight * 2).toFixed(2)}em`,
+                  }
+                : {}),
+              fontSize: sideFontSize,
+              lineHeight: sideLineHeight,
+              fontFamily: sideFontFamily || undefined,
+            } as CSSProperties
+          }
         >
           {content}
           {streaming && message.content && (
@@ -193,13 +252,8 @@ export function ChatMessage({
             isUser ? "flex-row-reverse" : "",
           )}
         >
-          {config.showTimestamps && !streaming && (
-            <span>
-              {new Intl.DateTimeFormat("zh-CN", {
-                hour: "2-digit",
-                minute: "2-digit",
-              }).format(new Date(message.createdAt))}
-            </span>
+          {config.showTimestamps && !streaming && layout !== "messenger" && (
+            <span>{timeLabel}</span>
           )}
           {isAssistant &&
             message.metadata?.worldbookHits &&

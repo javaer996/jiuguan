@@ -8,8 +8,9 @@ import { EmptyState } from "@/components/common/empty-state";
 import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
 import { requireUserPage } from "@/lib/auth/page";
+import { layoutLabel } from "@/lib/chat/layouts";
 import { STYLE_PRESETS } from "@/lib/content/defaults";
-import { cn, formatRelativeTime } from "@/lib/utils";
+import { formatRelativeTime, withAlpha } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "对话样式",
@@ -17,12 +18,139 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-const LAYOUT_LABEL: Record<string, string> = {
-  bubble: "气泡对话",
-  novel: "小说排版",
-  messenger: "即时通讯",
-  document: "文档信笺",
-};
+function DropCap({ char, accent }: { char: string; accent: string }) {
+  return (
+    <span
+      className="float-left mr-1 font-display text-[2.3em] leading-[0.85] font-semibold"
+      style={{ color: accent }}
+    >
+      {char}
+    </span>
+  );
+}
+
+function StyleCardPreview({
+  layout,
+  accent,
+  userAccent,
+  assistantAccent,
+  userTextColor,
+  assistantTextColor,
+  dropCap,
+}: {
+  layout: string;
+  accent: string;
+  userAccent?: string;
+  assistantAccent?: string;
+  userTextColor?: string;
+  assistantTextColor?: string;
+  dropCap?: boolean;
+}) {
+  const userAccentValue = userAccent || accent;
+  const assistantAccentValue = assistantAccent || accent;
+
+  if (layout === "novel") {
+    return (
+      <div className="mt-3 overflow-hidden rounded-lg bg-secondary/20 px-3 py-2.5 font-display text-[11px] leading-relaxed text-muted-foreground">
+        <p
+          className="text-foreground"
+          style={{ color: assistantTextColor || undefined }}
+        >
+          {dropCap && <DropCap char="今" accent={assistantAccentValue} />}
+          晚的酒馆比往常安静。炉火正好，窗边还留着你的位置。
+        </p>
+        <p
+          className="mt-1.5 text-right text-[10px] italic"
+          style={{ color: userTextColor || undefined }}
+        >
+          窗边吧。炉火正好。
+        </p>
+      </div>
+    );
+  }
+
+  if (layout === "document") {
+    return (
+      <div className="relative mt-3 overflow-hidden rounded-lg border border-primary/25 bg-card/60 px-3.5 py-3 font-display text-[11px] leading-relaxed text-muted-foreground">
+        <div className="pointer-events-none absolute inset-1.5 rounded-md border border-primary/10" />
+        <p
+          className="relative text-foreground"
+          style={{ color: assistantTextColor || undefined }}
+        >
+          {dropCap && <DropCap char="今" accent={assistantAccentValue} />}
+          晚的酒馆比往常安静。炉火正好，窗边还留着你的位置。
+        </p>
+        <p
+          className="relative mt-2 text-right text-[10px] italic"
+          style={{ color: userTextColor || undefined }}
+        >
+          —— 窗边吧，炉火正好。
+        </p>
+        <span className="absolute right-3 bottom-1 text-[10px] text-primary/40">
+          ❦
+        </span>
+      </div>
+    );
+  }
+
+  if (layout === "messenger") {
+    return (
+      <div className="mt-3 space-y-1.5">
+        <p
+          className="text-[9px] tracking-wide text-muted-foreground/70"
+          style={{ color: assistantAccentValue }}
+        >
+          月见 · 22:14
+        </p>
+        <div
+          className="max-w-[88%] rounded-lg rounded-bl-[0.3rem] border px-2.5 py-1.5 text-[11px]"
+          style={{
+            borderColor: withAlpha(assistantAccentValue, 0.3),
+            background: withAlpha(assistantAccentValue, 0.06),
+            color: assistantTextColor || undefined,
+          }}
+        >
+          今晚的酒馆比往常安静。
+        </div>
+        <div
+          className="ml-auto max-w-[80%] rounded-lg rounded-br-[0.3rem] border px-2.5 py-1.5 text-[11px]"
+          style={{
+            borderColor: withAlpha(userAccentValue, 0.35),
+            background: withAlpha(userAccentValue, 0.12),
+            color: userTextColor || undefined,
+          }}
+        >
+          窗边吧。炉火正好。
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-2">
+      <div
+        className="max-w-[85%] rounded-xl border px-3 py-2 text-[11px]"
+        style={{
+          borderColor: withAlpha(assistantAccentValue, 0.28),
+          background: withAlpha(assistantAccentValue, 0.06),
+          color: assistantTextColor || undefined,
+        }}
+      >
+        今晚的酒馆比往常安静。
+      </div>
+      <div
+        className="ml-auto max-w-[85%] rounded-xl border px-3 py-2 text-[11px]"
+        style={{
+          borderColor: withAlpha(userAccentValue, 0.3),
+          background: withAlpha(userAccentValue, 0.1),
+          color: userTextColor || undefined,
+        }}
+      >
+        窗边吧。炉火正好。
+      </div>
+    </div>
+  );
+}
 
 export default async function StylesPage() {
   const context = await requireUserPage("/styles");
@@ -80,6 +208,10 @@ export default async function StylesPage() {
                 (item) => item.key === style.builtInKey,
               );
               const accent = style.config?.accentColor || "#c9a45c";
+              const userAccent = style.config?.userAccentColor;
+              const assistantAccent = style.config?.assistantAccentColor;
+              const userTextColor = style.config?.userTextColor;
+              const assistantTextColor = style.config?.assistantTextColor;
               const layout = style.config?.layout ?? "bubble";
               return (
                 <Link
@@ -91,7 +223,7 @@ export default async function StylesPage() {
 
                   <div className="relative flex items-center justify-between gap-3">
                     <span className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase">
-                      {LAYOUT_LABEL[layout] ?? "自定义"}
+                      {layoutLabel(layout)}
                     </span>
                     <span
                       className="size-4 rounded-full border border-white/10"
@@ -99,43 +231,15 @@ export default async function StylesPage() {
                     />
                   </div>
 
-                  <div className="relative mt-3 space-y-2">
-                    <div
-                      className={cn(
-                        "max-w-[85%] rounded-xl border border-border/50 bg-secondary/45 px-3 py-2 text-[11px] text-muted-foreground",
-                        layout === "novel" || layout === "document"
-                          ? "max-w-full rounded-none border-0 border-l-2 bg-transparent pl-2"
-                          : "",
-                      )}
-                      style={
-                        layout === "novel" || layout === "document"
-                          ? { borderColor: accent }
-                          : undefined
-                      }
-                    >
-                      今晚的酒馆比往常安静。
-                    </div>
-                    <div
-                      className={cn(
-                        "ml-auto max-w-[85%] rounded-xl border px-3 py-2 text-[11px]",
-                        layout === "novel" || layout === "document"
-                          ? "max-w-full rounded-none border-0 border-l-2 bg-transparent pl-2 text-foreground"
-                          : "",
-                      )}
-                      style={{
-                        borderColor:
-                          layout === "novel" || layout === "document"
-                            ? accent
-                            : `${accent}40`,
-                        background:
-                          layout === "novel" || layout === "document"
-                            ? undefined
-                            : `${accent}14`,
-                      }}
-                    >
-                      窗边吧。炉火正好。
-                    </div>
-                  </div>
+                  <StyleCardPreview
+                    layout={layout}
+                    accent={accent}
+                    userAccent={userAccent}
+                    assistantAccent={assistantAccent}
+                    userTextColor={userTextColor}
+                    assistantTextColor={assistantTextColor}
+                    dropCap={Boolean(style.config?.dropCap)}
+                  />
 
                   <h2 className="relative mt-4 truncate font-display text-lg font-medium">
                     {style.name}

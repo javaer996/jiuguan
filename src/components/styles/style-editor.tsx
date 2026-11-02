@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -14,13 +14,15 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { CssField } from "@/components/common/css-field";
 import { Field } from "@/components/common/field";
 import { EditorSection } from "@/components/common/editor-section";
 import {
   ChatReplyOptions,
   ChatStatusStrip,
 } from "@/components/chat/chat-aids";
-import { sanitizeCustomCssSafe } from "@/lib/css/sanitize";
+import { useLiveCustomCss } from "@/lib/css/use-live-css";
+import { CHAT_LAYOUTS } from "@/lib/chat/layouts";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,12 +55,7 @@ import type { StyleConfig } from "@/db/schema/types";
 import type { ChatStyleDTO } from "@/lib/types/content";
 import { cn, withAlpha } from "@/lib/utils";
 
-const LAYOUT_OPTIONS = [
-  { value: "bubble", label: "气泡对话" },
-  { value: "novel", label: "小说排版" },
-  { value: "messenger", label: "即时通讯" },
-  { value: "document", label: "文档信笺" },
-] as const;
+const LAYOUT_OPTIONS = CHAT_LAYOUTS;
 
 const SAMPLE_STATUS_VALUES: Record<string, string> = {
   情绪: "平静而警觉",
@@ -74,6 +71,10 @@ const SAMPLE_OPTION_TEXTS = [
 ];
 
 const SAMPLE_GOAL = "想让你留下来，听完她没说出口的往事。";
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
 
 function StringListEditor({
   values,
@@ -285,6 +286,146 @@ function toForm(style?: ChatStyleDTO): StyleForm {
   };
 }
 
+function ColorField({
+  value,
+  placeholder,
+  onChange,
+}: {
+  value?: string;
+  placeholder?: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className="size-9 shrink-0 rounded-lg border border-border/60"
+        style={{ background: value || "transparent" }}
+      />
+      <Input
+        value={value ?? ""}
+        placeholder={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </div>
+  );
+}
+
+function SideStyleFields({
+  side,
+  config,
+  globalFontSize,
+  globalLineHeight,
+  onChange,
+}: {
+  side: "user" | "assistant";
+  config: StyleConfig;
+  globalFontSize: number;
+  globalLineHeight: number;
+  onChange: (patch: Partial<StyleConfig>) => void;
+}) {
+  const isUser = side === "user";
+  const label = isUser ? "用户（你）" : "角色";
+  const bubble = isUser ? config.userBubble : config.assistantBubble;
+  const textColor = isUser ? config.userTextColor : config.assistantTextColor;
+  const accentColor = isUser
+    ? config.userAccentColor
+    : config.assistantAccentColor;
+  const fontFamily = isUser
+    ? config.userFontFamily
+    : config.assistantFontFamily;
+  const fontSize = isUser ? config.userFontSize : config.assistantFontSize;
+  const lineHeight = isUser ? config.userLineHeight : config.assistantLineHeight;
+
+  function patch(key: string, value: unknown) {
+    onChange({ [key]: value } as Partial<StyleConfig>);
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border border-border/60 bg-background/25 p-3">
+      <p className="text-xs font-medium">{label}</p>
+      <Field label="气泡背景" hint="仅气泡布局">
+        <ColorField
+          value={bubble}
+          placeholder="留空跟随主题"
+          onChange={(value) => patch(`${side}Bubble`, value)}
+        />
+      </Field>
+      <Field label="文字颜色" hint="留空跟随全局">
+        <ColorField
+          value={textColor}
+          placeholder="留空跟随全局"
+          onChange={(value) => patch(`${side}TextColor`, value)}
+        />
+      </Field>
+      <Field label="强调色" hint="边框、名字与首字">
+        <ColorField
+          value={accentColor}
+          placeholder="留空跟随全局强调色"
+          onChange={(value) => patch(`${side}AccentColor`, value)}
+        />
+      </Field>
+      <Field label="字体" hint="留空跟随全局">
+        <Input
+          value={fontFamily ?? ""}
+          placeholder="留空跟随全局"
+          onChange={(event) => patch(`${side}FontFamily`, event.target.value)}
+        />
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field
+          label="字号"
+          hint={fontSize ? `${fontSize}px` : `跟随 ${globalFontSize}px`}
+        >
+          <Input
+            type="number"
+            min={10}
+            max={28}
+            value={fontSize ?? ""}
+            placeholder={String(globalFontSize)}
+            onChange={(event) =>
+              patch(
+                `${side}FontSize`,
+                event.target.value ? Number(event.target.value) : undefined,
+              )
+            }
+            onBlur={(event) => {
+              const value = Number(event.target.value);
+              if (event.target.value && Number.isFinite(value)) {
+                patch(`${side}FontSize`, clampNumber(value, 10, 28));
+              }
+            }}
+          />
+        </Field>
+        <Field
+          label="行高"
+          hint={lineHeight ? `${lineHeight}` : `跟随 ${globalLineHeight}`}
+        >
+          <Input
+            type="number"
+            min={1}
+            max={3}
+            step={0.1}
+            value={lineHeight ?? ""}
+            placeholder={String(globalLineHeight)}
+            onChange={(event) =>
+              patch(
+                `${side}LineHeight`,
+                event.target.value ? Number(event.target.value) : undefined,
+              )
+            }
+            onBlur={(event) => {
+              const value = Number(event.target.value);
+              if (event.target.value && Number.isFinite(value)) {
+                patch(`${side}LineHeight`, clampNumber(value, 1, 3));
+              }
+            }}
+          />
+        </Field>
+      </div>
+    </div>
+  );
+}
+
 export function StylePreview({
   config,
   customCss,
@@ -297,19 +438,87 @@ export function StylePreview({
   const layout = config.layout ?? "bubble";
   const fontSize = config.fontSize ?? 16;
   const lineHeight = config.lineHeight ?? 1.8;
-  const sanitizedCss = sanitizeCustomCssSafe(customCss);
-  const accentStyle = (isUser: boolean) => {
-    if (!config.accentColor) return {};
-    if (layout === "novel") {
-      return { borderLeftColor: withAlpha(config.accentColor, 0.45) };
-    }
-    if (layout === "document") {
-      return { borderColor: withAlpha(config.accentColor, 0.2) };
-    }
+  const accent = config.accentColor || null;
+  const bubble = layout === "bubble" || layout === "messenger";
+  const dropCap = Boolean(config.dropCap);
+  const { css: sanitizedCss } = useLiveCustomCss(customCss);
+
+  const sideValues = (isUser: boolean) => ({
+    accent: isUser
+      ? config.userAccentColor || accent
+      : config.assistantAccentColor || accent,
+    textColor: isUser ? config.userTextColor : config.assistantTextColor,
+    fontFamily: isUser
+      ? config.userFontFamily || config.fontFamily
+      : config.assistantFontFamily || config.fontFamily,
+    fontSize: isUser
+      ? (config.userFontSize ?? fontSize)
+      : (config.assistantFontSize ?? fontSize),
+    lineHeight: isUser
+      ? (config.userLineHeight ?? lineHeight)
+      : (config.assistantLineHeight ?? lineHeight),
+  });
+
+  const contentStyle = (isUser: boolean): CSSProperties => {
+    const side = sideValues(isUser);
     return {
-      borderColor: withAlpha(config.accentColor, isUser ? 0.18 : 0.24),
-    };
+      background: bubble
+        ? (isUser ? config.userBubble : config.assistantBubble) || undefined
+        : undefined,
+      borderColor: side.accent
+        ? bubble
+          ? withAlpha(side.accent, isUser ? 0.18 : 0.24)
+          : layout === "document"
+            ? withAlpha(side.accent, 0.28)
+            : undefined
+        : undefined,
+      color: side.textColor || undefined,
+      ...(!isUser && dropCap
+        ? {
+            "--zy-dropcap-color":
+              config.dropCapColor || side.accent || undefined,
+            "--zy-dropcap-size": `${(side.lineHeight * 2).toFixed(2)}em`,
+          }
+        : {}),
+      fontSize: side.fontSize,
+      lineHeight: side.lineHeight,
+      fontFamily: side.fontFamily || undefined,
+    } as CSSProperties;
   };
+
+  const contentClass = (isUser: boolean) =>
+    cn(
+      "zy-content relative text-left",
+      layout === "bubble" &&
+        cn(
+          "zy-bubble rounded-2xl border px-4 py-2.5",
+          isUser
+            ? "zy-bubble-user border-primary/20 bg-primary/[0.08]"
+            : "zy-bubble-assistant border-primary/25 bg-card/80 backdrop-blur-sm",
+        ),
+      layout === "messenger" &&
+        cn(
+          "zy-bubble zy-messenger rounded-xl border px-3.5 py-2 text-[0.94em]",
+          isUser
+            ? "zy-bubble-user border-primary/25 bg-primary/[0.12]"
+            : "zy-bubble-assistant border-border/60 bg-card/85",
+        ),
+      layout === "novel" && "zy-novel",
+      layout === "novel" && isUser && "zy-novel-user",
+      layout === "document" && "zy-document w-full",
+      layout === "document" && isUser && "zy-document-note",
+      !isUser && dropCap && "zy-dropcap",
+      !isUser &&
+        dropCap &&
+        config.dropCapEffect === "gradient" &&
+        "zy-dropcap-gradient",
+      !isUser && dropCap && config.dropCapEffect === "glow" && "zy-dropcap-glow",
+      !bubble && layout !== "document" && "px-0 py-1",
+    );
+
+  const showName =
+    layout === "novel" || layout === "document" || layout === "messenger";
+
   const narration = config.narrationQuotes ? (
     <span
       className="zy-narration"
@@ -320,6 +529,18 @@ export function StylePreview({
   ) : (
     "「窗边吧。」"
   );
+  const assistantSample = dropCap ? (
+    <>
+      炉火的光落在杯沿上，像一小片融化的金子。{narration}
+      她替你拉开椅子，把杯子往你手边推了推。
+    </>
+  ) : (
+    <>
+      {narration}她替你拉开椅子，炉火的光落在杯沿上，
+      像一小片融化的金子。
+    </>
+  );
+
   const statusTags = config.statusTags?.length
     ? config.statusTags
     : DEFAULT_STATUS_TAGS;
@@ -343,12 +564,14 @@ export function StylePreview({
     <div
       className={cn(
         "zy-chat rounded-xl border border-border/60 bg-background p-4 text-foreground",
+        `zy-layout-${layout}`,
         className,
       )}
+      style={{ "--zy-accent": accent ?? undefined } as CSSProperties}
     >
       {sanitizedCss && <style>{sanitizedCss}</style>}
       <div
-        className="mx-auto space-y-4"
+        className={cn("mx-auto", layout === "messenger" ? "space-y-3" : "space-y-4")}
         style={{
           maxWidth: config.maxWidth ?? 860,
           fontFamily: config.fontFamily || undefined,
@@ -366,82 +589,105 @@ export function StylePreview({
 
         <div
           className={cn(
-            "flex gap-3",
-            layout === "bubble" || layout === "messenger"
-              ? "flex-row-reverse"
-              : "justify-end",
+            "zy-message zy-message-user flex gap-3",
+            `zy-layout-${layout}`,
+            bubble ? "flex-row-reverse" : "justify-end",
+            layout === "messenger" && "gap-2",
           )}
+          style={
+            {
+              "--zy-accent": sideValues(true).accent ?? undefined,
+            } as CSSProperties
+          }
         >
           {config.showAvatars && (
-            <span className="zy-avatar mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary/90 text-xs text-muted-foreground ring-1 ring-border/50 backdrop-blur-sm">
+            <span
+              className={cn(
+                "zy-avatar mt-1 flex shrink-0 items-center justify-center bg-secondary/90 text-muted-foreground ring-1 ring-border/50 backdrop-blur-sm",
+                layout === "messenger"
+                  ? "size-7 rounded-lg text-[10px]"
+                  : "size-8 rounded-xl text-xs",
+              )}
+            >
               你
             </span>
           )}
-          <div className="flex min-w-0 flex-col items-end">
-            <div
-              className={cn(
-                "zy-content text-left",
-                layout === "bubble" || layout === "messenger"
-                  ? cn(
-                      "zy-bubble border border-primary/20 bg-primary/[0.08] px-4 py-2.5",
-                      layout === "messenger" ? "rounded-xl" : "rounded-2xl",
-                    )
-                  : "border-l-2 border-primary/45 pl-3",
-                layout === "novel" && "zy-novel",
-                layout === "document" &&
-                  "zy-document w-full rounded-xl border border-border/50 bg-card/75 px-4 py-3 shadow-soft backdrop-blur-sm",
-              )}
-              style={{
-                ...accentStyle(true),
-                ...(config.userBubble ? { background: config.userBubble } : {}),
-              }}
-            >
-              <p className="text-muted-foreground">
-                今晚的酒馆比往常安静。你要坐窗边，还是靠近炉火？
+          <div
+            className={cn(
+              "flex min-w-0 flex-col items-end text-right",
+              layout === "document" && "w-full",
+            )}
+          >
+            {showName && (
+              <p className="zy-name mb-1 text-[10px] tracking-[0.16em] text-muted-foreground/80 uppercase">
+                <span>你</span>
+                {layout === "messenger" && config.showTimestamps && (
+                  <span className="ml-1.5 text-[9px] tracking-normal text-muted-foreground/50">
+                    22:14
+                  </span>
+                )}
               </p>
+            )}
+            <div className={contentClass(true)} style={contentStyle(true)}>
+              <div className="chat-prose">
+                <p>今晚的酒馆比往常安静。你要坐窗边，还是靠近炉火？</p>
+              </div>
             </div>
-            {config.showTimestamps && (
-              <p className="mt-1 text-[10px] text-muted-foreground/80">
+            {config.showTimestamps && layout !== "messenger" && (
+              <p className="zy-meta mt-1 text-[10px] text-muted-foreground/80">
                 22:14
               </p>
             )}
           </div>
         </div>
 
-        <div className="flex gap-3">
+        <div
+          className={cn(
+            "zy-message zy-message-assistant flex gap-3",
+            `zy-layout-${layout}`,
+            layout === "messenger" && "gap-2",
+          )}
+          style={
+            {
+              "--zy-accent": sideValues(false).accent ?? undefined,
+            } as CSSProperties
+          }
+        >
           {config.showAvatars && (
-            <span className="zy-avatar mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg bg-card/90 text-xs text-primary ring-1 ring-border/50 backdrop-blur-sm">
+            <span
+              className={cn(
+                "zy-avatar mt-1 flex shrink-0 items-center justify-center bg-card/90 text-primary ring-1 ring-border/50 backdrop-blur-sm",
+                layout === "messenger"
+                  ? "size-7 rounded-lg text-[10px]"
+                  : "size-8 rounded-xl text-xs",
+              )}
+            >
               她
             </span>
           )}
-          <div className="flex min-w-0 flex-col items-start">
-            <div
-              className={cn(
-                "zy-content text-left",
-                layout === "bubble" || layout === "messenger"
-                  ? cn(
-                      "zy-bubble border border-primary/25 bg-card/80 px-4 py-2.5 backdrop-blur-sm",
-                      layout === "messenger" ? "rounded-xl" : "rounded-2xl",
-                    )
-                  : "border-l-2 border-primary/45 pl-3",
-                layout === "novel" && "zy-novel",
-                layout === "document" &&
-                  "zy-document w-full rounded-xl border border-border/50 bg-card/75 px-4 py-3 shadow-soft backdrop-blur-sm",
-              )}
-              style={{
-                ...accentStyle(false),
-                ...(config.assistantBubble
-                  ? { background: config.assistantBubble }
-                  : {}),
-              }}
-            >
-              <p>
-                {narration}她替你拉开椅子，炉火的光落在杯沿上，
-                像一小片融化的金子。
+          <div
+            className={cn(
+              "flex min-w-0 flex-col items-start",
+              layout === "document" && "w-full",
+            )}
+          >
+            {showName && (
+              <p className="zy-name mb-1 text-[10px] tracking-[0.16em] text-muted-foreground/80 uppercase">
+                <span>月见</span>
+                {layout === "messenger" && config.showTimestamps && (
+                  <span className="ml-1.5 text-[9px] tracking-normal text-muted-foreground/50">
+                    22:15
+                  </span>
+                )}
               </p>
+            )}
+            <div className={contentClass(false)} style={contentStyle(false)}>
+              <div className="chat-prose">
+                <p>{assistantSample}</p>
+              </div>
             </div>
-            {config.showTimestamps && (
-              <p className="mt-1 text-[10px] text-muted-foreground/80">
+            {config.showTimestamps && layout !== "messenger" && (
+              <p className="zy-meta mt-1 text-[10px] text-muted-foreground/80">
                 22:15
               </p>
             )}
@@ -768,6 +1014,65 @@ export function StyleEditor({ initial }: { initial?: ChatStyleDTO }) {
               </Field>
             </div>
 
+            <div className="rounded-xl border border-border/60 bg-background/25 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium">首字下沉</p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                    助手消息第一段的首字放大并占两行，小说与信笺布局最自然。
+                  </p>
+                </div>
+                <Switch
+                  checked={Boolean(form.config.dropCap)}
+                  onCheckedChange={(checked) => setConfig("dropCap", checked)}
+                />
+              </div>
+              {form.config.dropCap && (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <Field label="首字颜色" hint="留空使用强调色">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="size-9 shrink-0 rounded-lg border border-border/60"
+                        style={{
+                          background:
+                            form.config.dropCapColor ||
+                            form.config.accentColor ||
+                            "#c9a45c",
+                        }}
+                      />
+                      <Input
+                        value={form.config.dropCapColor ?? ""}
+                        placeholder={form.config.accentColor || "#c9a45c"}
+                        onChange={(event) =>
+                          setConfig("dropCapColor", event.target.value)
+                        }
+                      />
+                    </div>
+                  </Field>
+                  <Field label="首字特效">
+                    <Select
+                      value={form.config.dropCapEffect ?? "none"}
+                      onValueChange={(value) =>
+                        setConfig(
+                          "dropCapEffect",
+                          value as StyleConfig["dropCapEffect"],
+                        )
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">纯色</SelectItem>
+                        <SelectItem value="gradient">渐变</SelectItem>
+                        <SelectItem value="glow">微光</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+              )}
+            </div>
+
             <div className="grid gap-3 sm:grid-cols-3">
               {(
                 [
@@ -788,6 +1093,32 @@ export function StyleEditor({ initial }: { initial?: ChatStyleDTO }) {
                 </label>
               ))}
             </div>
+          </EditorSection>
+
+          <EditorSection
+            title="用户与角色"
+            description="分别调整你和角色消息的外观；留空则跟随上方的全局设置。"
+          >
+            <div className="grid gap-4 lg:grid-cols-2">
+              {(["user", "assistant"] as const).map((side) => (
+                <SideStyleFields
+                  key={side}
+                  side={side}
+                  config={form.config}
+                  globalFontSize={form.config.fontSize ?? 16}
+                  globalLineHeight={form.config.lineHeight ?? 1.8}
+                  onChange={(patch) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      config: { ...previous.config, ...patch },
+                    }))
+                  }
+                />
+              ))}
+            </div>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              气泡背景只对「气泡对话 / 即时通讯」生效；强调色会影响边框、名字与首字下沉的默认颜色。小说与信笺布局的文字颜色、字体、字号、行高同样可以分别覆盖。
+            </p>
           </EditorSection>
 
           <EditorSection
@@ -928,25 +1259,10 @@ export function StyleEditor({ initial }: { initial?: ChatStyleDTO }) {
             title="自定义 CSS"
             description="保存后会在渲染对话时净化并注入，仅作用于消息区域。"
           >
-            <Field label="CSS" hint="可选">
-              <Textarea
-                value={form.customCss}
-                rows={6}
-                maxLength={50_000}
-                className="font-mono text-[13px] leading-relaxed"
-                placeholder={`.zy-bubble {\n  letter-spacing: 0.02em;\n}`}
-                onChange={(event) => set("customCss", event.target.value)}
-              />
-            </Field>
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
-              选择器会自动限定在对话内，可写{" "}
-              <code>.zy-bubble</code>、<code>.zy-content</code>、
-              <code>.zy-name</code>、<code>.zy-avatar</code>、
-              <code>.zy-aid-status</code>、<code>.zy-aid-goal</code>、
-              <code>.zy-aid-option</code>。包含{" "}
-              <code>@import</code>、<code>url()</code> 或脚本的规则会被移除。
-              下方预览会实时应用清洗后的 CSS。
-            </p>
+            <CssField
+              value={form.customCss}
+              onChange={(value) => set("customCss", value)}
+            />
           </EditorSection>
         </div>
 

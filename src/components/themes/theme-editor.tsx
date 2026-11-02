@@ -13,6 +13,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { CssField } from "@/components/common/css-field";
 import { EditorSection } from "@/components/common/editor-section";
 import { Field } from "@/components/common/field";
 import { ImageUpload } from "@/components/common/image-upload";
@@ -439,24 +440,10 @@ export function ThemeEditor({ initial }: { initial?: ThemeDTO }) {
                 }
               />
             </Field>
-            <Field label="CSS" hint="可选">
-              <Textarea
-                value={form.customCss}
-                rows={6}
-                maxLength={50_000}
-                className="font-mono text-[13px] leading-relaxed"
-                placeholder={`.zy-bubble {\n  letter-spacing: 0.02em;\n}`}
-                onChange={(event) => set("customCss", event.target.value)}
-              />
-            </Field>
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
-              选择器会自动限定在 <code>.zy-chat</code> 内，可写{" "}
-              <code>.zy-bubble</code>、<code>.zy-content</code>、
-              <code>.zy-name</code>、<code>.zy-avatar</code>、
-              <code>.zy-aid-status</code>、<code>.zy-aid-goal</code>、
-              <code>.zy-aid-option</code>。包含{" "}
-              <code>@import</code>、<code>url()</code> 或脚本的规则会被移除。
-            </p>
+            <CssField
+              value={form.customCss}
+              onChange={(value) => set("customCss", value)}
+            />
           </EditorSection>
         </div>
 

@@ -18,6 +18,9 @@ const ALLOWED_PROPERTIES = new Set([
   "background-position",
   "background-repeat",
   "background-clip",
+  "-webkit-background-clip",
+  "-webkit-text-fill-color",
+  "background-origin",
   "border",
   "border-color",
   "border-style",
@@ -59,10 +62,15 @@ const ALLOWED_PROPERTIES = new Set([
   "font-style",
   "font-weight",
   "font-variant",
+  "font-feature-settings",
+  "font-variant-ligatures",
+  "font-variant-numeric",
   "line-height",
   "letter-spacing",
   "word-spacing",
   "text-align",
+  "text-align-last",
+  "text-wrap",
   "text-decoration",
   "text-decoration-color",
   "text-decoration-line",
@@ -70,6 +78,9 @@ const ALLOWED_PROPERTIES = new Set([
   "text-transform",
   "text-indent",
   "text-shadow",
+  "-webkit-text-stroke",
+  "-webkit-text-stroke-color",
+  "-webkit-text-stroke-width",
   "white-space",
   "word-break",
   "overflow-wrap",
@@ -117,12 +128,21 @@ const ALLOWED_PROPERTIES = new Set([
   "clear",
   "columns",
   "column-count",
+  "content",
+  "hyphens",
+  "transform",
+  "transform-origin",
+  "transition",
+  "transition-property",
+  "transition-duration",
+  "transition-timing-function",
 ]);
 
 const FORBIDDEN_VALUE =
   /url\s*\(|expression\s*\(|javascript:|@import|behavior\s*:|-moz-binding|var\s*\(|attr\s*\(|env\s*\(|image-set\s*\(|[<>\\]/i;
 
-const FORBIDDEN_SELECTOR = /[{}<>@\\]/;
+// 子代选择器里的 ">" 是合法且常用的；这里只拦截会破坏选择器结构的字符。
+const FORBIDDEN_SELECTOR = /[{}<@\\]/;
 
 function prefixSingle(selector: string): string | null {
   const trimmed = selector.trim();
@@ -242,4 +262,75 @@ export function sanitizeCustomCssSafe(input: string | null | undefined): string 
   } catch {
     return "";
   }
+}
+
+function openBraceDepth(source: string) {
+  let depth = 0;
+  let quote: string | null = null;
+  let inComment = false;
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index];
+    const next = source[index + 1];
+
+    if (inComment) {
+      if (char === "*" && next === "/") {
+        inComment = false;
+        index += 1;
+      }
+      continue;
+    }
+    if (quote) {
+      if (char === "\\") {
+        index += 1;
+      } else if (char === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      inComment = true;
+      index += 1;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === "{") depth += 1;
+    else if (char === "}") depth -= 1;
+  }
+
+  return Math.max(0, depth);
+}
+
+/**
+ * 预览专用：输入到一半时尽量补全右括号，
+ * 让编辑器里的实时预览在输入过程中也能持续更新。
+ */
+export function sanitizeCustomCssPreview(
+  input: string | null | undefined,
+): string {
+  if (!input?.trim()) return "";
+  try {
+    return sanitizeCustomCss(input);
+  } catch {
+    // 继续尝试补全
+  }
+
+  const suffix = "}".repeat(openBraceDepth(input));
+  const candidates = [input + suffix];
+  const withoutTail = input.replace(/[^;{}]*$/, "");
+  if (withoutTail !== input) {
+    candidates.push(withoutTail + suffix);
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return sanitizeCustomCss(candidate);
+    } catch {
+      // 尝试下一个补全方式
+    }
+  }
+  return "";
 }

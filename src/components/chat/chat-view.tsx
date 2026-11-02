@@ -132,6 +132,7 @@ export function ChatView({
     [detail.theme?.backgroundUrl],
   );
   const contentWidth = detail.style?.config?.maxWidth ?? 860;
+  const layout = detail.style?.config?.layout ?? "bubble";
   const aidsConfig = useMemo(
     () => resolveAidsConfig(detail.style?.config),
     [detail.style?.config],
@@ -392,7 +393,7 @@ export function ChatView({
 
   return (
     <div
-      className="zy-chat relative isolate flex h-[calc(100dvh-4rem)] flex-col bg-background font-sans text-foreground lg:h-dvh"
+      className={`zy-chat zy-layout-${layout} relative isolate flex h-[calc(100dvh-4rem)] flex-col bg-background font-sans text-foreground lg:h-dvh`}
       style={themeStyle}
     >
       {themeBackground && (
@@ -515,7 +516,7 @@ export function ChatView({
 
       <div className="flex-1 overflow-y-auto">
         <div
-          className="mx-auto flex w-full flex-col gap-5 px-4 py-6 sm:px-6"
+          className="zy-message-list mx-auto flex w-full flex-col gap-5 px-4 py-6 sm:px-6"
           style={{ maxWidth: contentWidth }}
         >
           {detail.messages.length === 0 && !pendingUser && (
