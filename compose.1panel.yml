@@ -127,27 +127,69 @@ services:
           echo "[启动] 代码未变化，跳过构建"
         fi
 
-        # 等待 MySQL 就绪，避免首次启动时迁移直接失败。
-        echo "[启动] 等待数据库"
+        # 等待 MySQL 就绪，并在库不存在时自动创建。
+        echo "[启动] 等待并检查数据库"
         node -e '
         const mysql = require("mysql2/promise");
+        const FATAL = new Set([
+          "ER_ACCESS_DENIED_ERROR",
+          "ER_DBACCESS_DENIED_ERROR",
+          "ER_NOT_SUPPORTED_AUTH_MODE",
+          "ER_BAD_DB_ERROR",
+          "ER_PARSE_ERROR",
+        ]);
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
         (async () => {
+          const target = new URL(process.env.DATABASE_URL);
+          const name = decodeURIComponent(target.pathname.replace(/^\//, ""));
+          if (!name) throw new Error("DATABASE_URL 缺少数据库名");
+          target.pathname = "/";
+
+          let server;
           for (let i = 0; i < 60; i += 1) {
             try {
-              // 只等待 MySQL 服务可用；数据库不存在时由 db:migrate 自动创建。
-              const target = new URL(process.env.DATABASE_URL);
-              target.pathname = "/";
-              const conn = await mysql.createConnection(target.toString());
-              await conn.ping();
-              await conn.end();
-              process.exit(0);
-            } catch {
-              await new Promise((resolve) => setTimeout(resolve, 3000));
+              server = await mysql.createConnection({
+                uri: target.toString(),
+                connectTimeout: 5000,
+              });
+              break;
+            } catch (error) {
+              const code = (error && error.code) || "UNKNOWN";
+              if (i === 0 || FATAL.has(code)) {
+                console.error("[启动] 连接 MySQL 失败（" + code + "）：" + error.message);
+              }
+              if (FATAL.has(code)) process.exit(1);
+              if (i === 59) {
+                console.error("[启动] MySQL 180 秒内仍不可用");
+                process.exit(1);
+              }
+              await sleep(3000);
             }
           }
-          console.error("[启动] 数据库 180 秒内仍不可用");
+
+          try {
+            try {
+              const db = await mysql.createConnection({
+                uri: process.env.DATABASE_URL,
+                connectTimeout: 5000,
+              });
+              await db.end();
+            } catch (error) {
+              if (error.code !== "ER_BAD_DB_ERROR") throw error;
+              await server.query(
+                "CREATE DATABASE IF NOT EXISTS ?? CHARACTER SET utf8mb4",
+                [name],
+              );
+              console.log("[启动] 数据库 " + name + " 不存在，已自动创建");
+            }
+          } finally {
+            await server.end();
+          }
+        })().catch((error) => {
+          console.error("[启动] 数据库检查失败（" + (error.code || "UNKNOWN") + "）：" + error.message);
+          console.error("[启动] 请检查 DATABASE_URL 的用户名、密码（特殊字符需 URL 编码）和账号权限");
           process.exit(1);
-        })();
+        });
         '
 
         # 迁移与 seed 都是幂等的，每次启动跑一遍没有副作用。
