@@ -1,4 +1,3 @@
-import { jsonrepair } from "jsonrepair";
 import { ApiError } from "@/lib/api";
 import {
   buildGenerationPrompt,
@@ -7,6 +6,7 @@ import {
   type AiDraftByKind,
   type AiKind,
 } from "@/lib/ai/drafts";
+import { parseLooseJson } from "@/lib/ai/parse";
 import { getGenerationPromptSettings } from "@/lib/ai/prompt-settings";
 import { streamCompletion } from "@/lib/ai/openai";
 import { decryptSecret } from "@/lib/crypto/secretbox";
@@ -19,34 +19,6 @@ type GenerateArgs = {
   providerId?: string | null;
   signal?: AbortSignal;
 };
-
-function stripCodeFence(raw: string) {
-  const trimmed = raw.trim();
-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
-  if (fenced?.[1]) return fenced[1].trim();
-
-  const first = trimmed.indexOf("{");
-  const last = trimmed.lastIndexOf("}");
-  if (first >= 0 && last > first) return trimmed.slice(first, last + 1);
-  return trimmed;
-}
-
-function parseLooseJson(raw: string) {
-  const text = stripCodeFence(raw);
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    try {
-      return JSON.parse(jsonrepair(text)) as unknown;
-    } catch {
-      throw new ApiError(
-        502,
-        "AI_INVALID_JSON",
-        "AI 没有返回合法 JSON，请重试或换一个模型",
-      );
-    }
-  }
-}
 
 export async function generateAiDraft<K extends AiKind>({
   userId,

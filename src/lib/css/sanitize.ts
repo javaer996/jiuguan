@@ -9,6 +9,14 @@ export class CssSanitizeError extends Error {
 
 const SCOPE = ".zy-chat";
 
+export const CSS_SCOPE = SCOPE;
+
+export const CSS_LIMITS = {
+  maxRules: 200,
+  maxLength: 50_000,
+  maxValueLength: 1_000,
+} as const;
+
 const ALLOWED_PROPERTIES = new Set([
   "color",
   "background",
@@ -110,6 +118,7 @@ const ALLOWED_PROPERTIES = new Set([
   "opacity",
   "box-shadow",
   "filter",
+  "clip-path",
   "list-style",
   "list-style-type",
   "list-style-position",
@@ -136,10 +145,156 @@ const ALLOWED_PROPERTIES = new Set([
   "transition-property",
   "transition-duration",
   "transition-timing-function",
+  "animation",
+  "animation-name",
+  "animation-duration",
+  "animation-timing-function",
+  "animation-delay",
+  "animation-iteration-count",
+  "animation-direction",
+  "animation-fill-mode",
+  "animation-play-state",
+  "backdrop-filter",
+  "-webkit-backdrop-filter",
+  "background-blend-mode",
+  "mix-blend-mode",
 ]);
 
+/** Property names exported for the AI prompt builder. */
+export const ALLOWED_CSS_PROPERTIES: readonly string[] = Array.from(
+  ALLOWED_PROPERTIES,
+);
+
 const FORBIDDEN_VALUE =
-  /url\s*\(|expression\s*\(|javascript:|@import|behavior\s*:|-moz-binding|var\s*\(|attr\s*\(|env\s*\(|image-set\s*\(|[<>\\]/i;
+  /expression\s*\(|javascript:|@import|behavior\s*:|-moz-binding|var\s*\(|attr\s*\(|env\s*\(|image-set\s*\(|[<>\\]/i;
+
+const ALLOWED_AT_RULES = new Set([
+  "media",
+  "supports",
+  "keyframes",
+  "-webkit-keyframes",
+]);
+
+/** 只有背景相关属性可以引用图片地址。 */
+const URL_PROPERTIES = new Set(["background", "background-image"]);
+
+const FORBIDDEN_AT_RULE_PRELUDE =
+  /[{}<>\\@]|url\s*\(|expression\s*\(|javascript:|behavior\s*:|-moz-binding|var\s*\(|attr\s*\(|env\s*\(|image-set\s*\(/i;
+
+const KEYFRAMES_NAME = /^(--)?[A-Za-z_][A-Za-z0-9_-]*$/;
+
+const KEYFRAME_SELECTOR = /^(from|to|\d+(?:\.\d+)?%)$/i;
+
+function isKeyframesAtRule(atrule: csstree.Atrule | null): boolean {
+  if (!atrule) return false;
+  const name = atrule.name.toLowerCase();
+  return name === "keyframes" || name === "-webkit-keyframes";
+}
+
+function isPrivateIpv4(host: string) {
+  const parts = host.split(".");
+  if (parts.length !== 4) return false;
+  const octets = parts.map((part) =>
+    /^\d{1,3}$/.test(part) ? Number(part) : Number.NaN,
+  );
+  if (
+    octets.some(
+      (value) => !Number.isInteger(value) || value < 0 || value > 255,
+    )
+  ) {
+    return false;
+  }
+  const [a, b] = octets as [number, number, number, number];
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 192 && b === 0) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    a >= 224
+  );
+}
+
+function isPrivateHostname(hostname: string) {
+  const host = hostname
+    .replace(/^\[|\]$/g, "")
+    .toLowerCase()
+    .replace(/\.+$/, "");
+  if (!host) return true;
+  if (
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal")
+  ) {
+    return true;
+  }
+  if (host.includes(":")) {
+    if (host === "::" || host === "::1") return true;
+    if (host.startsWith("fc") || host.startsWith("fd")) return true;
+    if (/^fe[89ab]/.test(host)) return true;
+    if (host.startsWith("::ffff:")) return isPrivateIpv4(host.slice(7));
+    return false;
+  }
+  return isPrivateIpv4(host);
+}
+
+/** 背景图只接受站内上传路径或公网 http(s) 地址。 */
+function isSafeCssUrl(raw: string) {
+  const value = raw.trim();
+  if (!value || value.length > 2048) return false;
+  if (/[\s"'`<>\\]/.test(value)) return false;
+
+  if (value.startsWith("/uploads/")) {
+    return !value.includes("..") && !value.includes("//");
+  }
+
+  if (!/^https?:\/\//i.test(value)) return false;
+
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+  if (url.username || url.password) return false;
+  return Boolean(url.hostname) && !isPrivateHostname(url.hostname);
+}
+
+function hasOnlySafeUrls(node: csstree.Declaration) {
+  let found = false;
+  let safe = true;
+  csstree.walk(node.value, {
+    visit: "Url",
+    enter(urlNode) {
+      found = true;
+      if (!isSafeCssUrl(urlNode.value)) safe = false;
+    },
+  });
+  return !found || safe;
+}
+
+function isValidAtRule(atrule: csstree.Atrule) {
+  if (!atrule.block) return false;
+  const prelude = atrule.prelude
+    ? csstree.generate(atrule.prelude).trim()
+    : "";
+  if (!prelude || prelude.length > CSS_LIMITS.maxValueLength) return false;
+  if (isKeyframesAtRule(atrule)) return KEYFRAMES_NAME.test(prelude);
+  return !FORBIDDEN_AT_RULE_PRELUDE.test(prelude);
+}
+
+function isKeyframeSelector(prelude: csstree.CssNode) {
+  return csstree
+    .generate(prelude)
+    .split(",")
+    .every((part) => KEYFRAME_SELECTOR.test(part.trim()));
+}
 
 // 子代选择器里的 ">" 是合法且常用的；这里只拦截会破坏选择器结构的字符。
 const FORBIDDEN_SELECTOR = /[{}<@\\]/;
@@ -164,15 +319,16 @@ function prefixSelector(prelude: csstree.CssNode): string | null {
 
 /**
  * 清洗用户自定义 CSS：
- * - 删除所有 at-rule（@import、@font-face、@media 等）
+ * - 仅保留 @media、@supports 与 @keyframes，其余 at-rule 删除
  * - 只保留白名单属性
- * - 拒绝 url()、expression()、CSS 变量、尖括号与反斜杠
- * - 所有选择器自动限定在 .zy-chat 之内
+ * - url() 仅允许出现在 background / background-image，且只接受 /uploads/ 或公网 http(s)
+ * - 拒绝 expression()、CSS 变量、尖括号与反斜杠
+ * - 普通选择器自动限定在 .zy-chat 之内，关键帧选择器保持原样
  */
 export function sanitizeCustomCss(input: string): string {
   const source = input.trim();
   if (!source) return "";
-  if (source.length > 50_000) {
+  if (source.length > CSS_LIMITS.maxLength) {
     throw new CssSanitizeError("自定义 CSS 不能超过 50000 个字符");
   }
 
@@ -192,7 +348,14 @@ export function sanitizeCustomCss(input: string): string {
   csstree.walk(ast, {
     visit: "Atrule",
     enter(node, item, list) {
-      if (list && item) list.remove(item);
+      const name = node.name.toLowerCase();
+      if (
+        !ALLOWED_AT_RULES.has(name) ||
+        isKeyframesAtRule(this.atrule) ||
+        !isValidAtRule(node)
+      ) {
+        if (list && item) list.remove(item);
+      }
     },
   });
 
@@ -200,8 +363,16 @@ export function sanitizeCustomCss(input: string): string {
   csstree.walk(ast, {
     visit: "Rule",
     enter(node, item, list) {
+      if (isKeyframesAtRule(this.atrule)) {
+        // 关键帧内部的 from / to / 百分比选择器保持原样，不加作用域。
+        if (!isKeyframeSelector(node.prelude)) {
+          if (list && item) list.remove(item);
+        }
+        return;
+      }
+
       ruleCount += 1;
-      if (ruleCount > 200) {
+      if (ruleCount > CSS_LIMITS.maxRules) {
         if (list && item) list.remove(item);
         return;
       }
@@ -224,11 +395,14 @@ export function sanitizeCustomCss(input: string): string {
     enter(node, item, list) {
       const property = node.property.toLowerCase();
       const value = csstree.generate(node.value).trim();
+      const usesUrl = /url\s*\(/i.test(value);
       if (
         !value ||
         !ALLOWED_PROPERTIES.has(property) ||
         FORBIDDEN_VALUE.test(value) ||
-        value.length > 1000
+        value.length > CSS_LIMITS.maxValueLength ||
+        (usesUrl &&
+          (!URL_PROPERTIES.has(property) || !hasOnlySafeUrls(node)))
       ) {
         if (list && item) list.remove(item);
       }
@@ -244,11 +418,20 @@ export function sanitizeCustomCss(input: string): string {
     },
   });
 
+  csstree.walk(ast, {
+    visit: "Atrule",
+    enter(node, item, list) {
+      if (!node.block || node.block.children.size === 0) {
+        if (list && item) list.remove(item);
+      }
+    },
+  });
+
   const output = csstree.generate(ast).trim();
   if (!output) {
     throw new CssSanitizeError("自定义 CSS 中没有可用的规则");
   }
-  if (output.length > 50_000) {
+  if (output.length > CSS_LIMITS.maxLength) {
     throw new CssSanitizeError("清洗后的 CSS 仍然过长");
   }
   return output;

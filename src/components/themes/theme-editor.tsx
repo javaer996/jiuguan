@@ -13,6 +13,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ColorPicker } from "@/components/common/color-picker";
 import { CssField } from "@/components/common/css-field";
 import { EditorSection } from "@/components/common/editor-section";
 import { Field } from "@/components/common/field";
@@ -84,6 +85,16 @@ function detectPresetKey(tokens?: Record<string, string> | null) {
   return bestKey;
 }
 
+/** 提供给 AI 的当前主题颜色，避免生成 CSS 时引用 CSS 变量。 */
+function themeCssContext(tokens: Record<string, string>) {
+  return THEME_TOKENS.filter((token) => token.kind === "color")
+    .map(
+      (token) =>
+        `${token.label}（${token.key}）：${tokens[token.key] ?? token.defaultValue}`,
+    )
+    .join("；");
+}
+
 function toForm(theme?: ThemeDTO): ThemeForm {
   const presetKey = detectPresetKey(theme?.tokens);
   const preset = themePreset(presetKey);
@@ -97,10 +108,6 @@ function toForm(theme?: ThemeDTO): ThemeForm {
     mode: theme?.mode ?? "both",
     isDefault: theme?.isDefault ?? false,
   };
-}
-
-function hexForPicker(value: string) {
-  return /^#[0-9a-f]{6}$/i.test(value) ? value : "#000000";
 }
 
 export function ThemeEditor({ initial }: { initial?: ThemeDTO }) {
@@ -386,18 +393,16 @@ export function ThemeEditor({ initial }: { initial?: ThemeDTO }) {
                             label={token.label}
                             hint={token.hint}
                           >
-                            <div className="flex items-center gap-2">
-                              {token.kind === "color" && (
-                                <input
-                                  type="color"
-                                  value={hexForPicker(value)}
-                                  onChange={(event) =>
-                                    setToken(token.key, event.target.value)
-                                  }
-                                  className="size-9 shrink-0 cursor-pointer rounded-lg border border-border/60 bg-transparent p-0.5"
-                                  aria-label={`${token.label}取色`}
-                                />
-                              )}
+                            {token.kind === "color" ? (
+                              <ColorPicker
+                                value={value}
+                                fallback={token.defaultValue}
+                                allowClear={false}
+                                onChange={(next) =>
+                                  setToken(token.key, next)
+                                }
+                              />
+                            ) : (
                               <Input
                                 value={value}
                                 maxLength={200}
@@ -408,7 +413,7 @@ export function ThemeEditor({ initial }: { initial?: ThemeDTO }) {
                                   setToken(token.key, event.target.value)
                                 }
                               />
-                            </div>
+                            )}
                           </Field>
                         );
                       })}
@@ -443,6 +448,8 @@ export function ThemeEditor({ initial }: { initial?: ThemeDTO }) {
             <CssField
               value={form.customCss}
               onChange={(value) => set("customCss", value)}
+              target="theme"
+              context={themeCssContext(form.tokens)}
             />
           </EditorSection>
         </div>

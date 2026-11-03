@@ -25,7 +25,7 @@ export function ThemePreview({
 }) {
   const safeTokens = sanitizeThemeTokensSafe(tokens);
   const safeBackground = sanitizeThemeBackgroundUrlSafe(backgroundUrl);
-  const { css: sanitizedCss } = useLiveCustomCss(customCss);
+  const { css: sanitizedCss, fallbackCss } = useLiveCustomCss(customCss);
 
   return (
     <div
@@ -35,6 +35,7 @@ export function ThemePreview({
       )}
       style={themeTokensToStyle(safeTokens)}
     >
+      {fallbackCss && <style>{fallbackCss}</style>}
       {sanitizedCss && <style>{sanitizedCss}</style>}
 
       {safeBackground && (

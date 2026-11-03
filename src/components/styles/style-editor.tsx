@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ColorPicker } from "@/components/common/color-picker";
 import { CssField } from "@/components/common/css-field";
 import { Field } from "@/components/common/field";
 import { EditorSection } from "@/components/common/editor-section";
@@ -74,6 +75,28 @@ const SAMPLE_GOAL = "想让你留下来，听完她没说出口的往事。";
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+/** 提供给 AI 的当前外观摘要，帮助生成的 CSS 与现有配色保持一致。 */
+function styleCssContext(config: StyleConfig) {
+  return [
+    `布局：${config.layout ?? "bubble"}`,
+    `全局字号：${config.fontSize ?? 16}px`,
+    `全局行高：${config.lineHeight ?? 1.8}`,
+    `全局强调色：${config.accentColor || "跟随主题"}`,
+    `字体：${config.fontFamily || "默认"}`,
+    `用户气泡背景：${config.userBubble || "跟随主题"}`,
+    `角色气泡背景：${config.assistantBubble || "跟随主题"}`,
+    `用户文字颜色：${config.userTextColor || "跟随全局"}`,
+    `角色文字颜色：${config.assistantTextColor || "跟随全局"}`,
+    `用户强调色：${config.userAccentColor || "跟随全局"}`,
+    `角色强调色：${config.assistantAccentColor || "跟随全局"}`,
+    config.dropCap
+      ? `首字下沉：开启，颜色 ${config.dropCapColor || config.accentColor || "跟随强调色"}`
+      : "首字下沉：关闭，不要生成 ::first-letter 放大效果",
+  ]
+    .filter(Boolean)
+    .join("；");
 }
 
 function StringListEditor({
@@ -289,24 +312,24 @@ function toForm(style?: ChatStyleDTO): StyleForm {
 function ColorField({
   value,
   placeholder,
+  fallback,
+  clearLabel,
   onChange,
 }: {
   value?: string;
   placeholder?: string;
+  fallback?: string;
+  clearLabel?: string;
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <span
-        className="size-9 shrink-0 rounded-lg border border-border/60"
-        style={{ background: value || "transparent" }}
-      />
-      <Input
-        value={value ?? ""}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </div>
+    <ColorPicker
+      value={value}
+      placeholder={placeholder}
+      fallback={fallback}
+      clearLabel={clearLabel}
+      onChange={onChange}
+    />
   );
 }
 
@@ -346,22 +369,28 @@ function SideStyleFields({
       <Field label="气泡背景" hint="仅气泡布局">
         <ColorField
           value={bubble}
+          fallback="#16131d"
           placeholder="留空跟随主题"
-          onChange={(value) => patch(`${side}Bubble`, value)}
+          clearLabel="留空跟随主题"
+          onChange={(value) => patch(`${side}Bubble`, value || undefined)}
         />
       </Field>
       <Field label="文字颜色" hint="留空跟随全局">
         <ColorField
           value={textColor}
+          fallback="#ece7df"
           placeholder="留空跟随全局"
-          onChange={(value) => patch(`${side}TextColor`, value)}
+          clearLabel="留空跟随全局"
+          onChange={(value) => patch(`${side}TextColor`, value || undefined)}
         />
       </Field>
       <Field label="强调色" hint="边框、名字与首字">
         <ColorField
           value={accentColor}
+          fallback="#c9a45c"
           placeholder="留空跟随全局强调色"
-          onChange={(value) => patch(`${side}AccentColor`, value)}
+          clearLabel="留空跟随全局强调色"
+          onChange={(value) => patch(`${side}AccentColor`, value || undefined)}
         />
       </Field>
       <Field label="字体" hint="留空跟随全局">
@@ -441,7 +470,7 @@ export function StylePreview({
   const accent = config.accentColor || null;
   const bubble = layout === "bubble" || layout === "messenger";
   const dropCap = Boolean(config.dropCap);
-  const { css: sanitizedCss } = useLiveCustomCss(customCss);
+  const { css: sanitizedCss, fallbackCss } = useLiveCustomCss(customCss);
 
   const sideValues = (isUser: boolean) => ({
     accent: isUser
@@ -569,6 +598,7 @@ export function StylePreview({
       )}
       style={{ "--zy-accent": accent ?? undefined } as CSSProperties}
     >
+      {fallbackCss && <style>{fallbackCss}</style>}
       {sanitizedCss && <style>{sanitizedCss}</style>}
       <div
         className={cn("mx-auto", layout === "messenger" ? "space-y-3" : "space-y-4")}
@@ -986,29 +1016,25 @@ export function StyleEditor({ initial }: { initial?: ChatStyleDTO }) {
                   }
                 />
               </Field>
-              <Field label="强调色" hint="十六进制颜色">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="size-9 shrink-0 rounded-lg border border-border/60"
-                    style={{
-                      background: form.config.accentColor || "#c9a45c",
-                    }}
-                  />
-                  <Input
-                    value={form.config.accentColor ?? ""}
-                    placeholder="#c9a45c"
-                    onChange={(event) =>
-                      setConfig("accentColor", event.target.value)
-                    }
-                  />
-                </div>
+              <Field label="强调色" hint="点击色块选择">
+                <ColorPicker
+                  value={form.config.accentColor}
+                  fallback="#c9a45c"
+                  placeholder="#c9a45c"
+                  clearLabel="留空使用默认强调色"
+                  onChange={(value) =>
+                    setConfig("accentColor", value || undefined)
+                  }
+                />
               </Field>
               <Field label="旁白颜色" hint="可选">
-                <Input
-                  value={form.config.narrationColor ?? ""}
-                  placeholder="留空则使用默认文字色"
-                  onChange={(event) =>
-                    setConfig("narrationColor", event.target.value)
+                <ColorPicker
+                  value={form.config.narrationColor}
+                  fallback={form.config.accentColor || "#c9a45c"}
+                  placeholder="留空使用默认文字色"
+                  clearLabel="留空使用默认文字色"
+                  onChange={(value) =>
+                    setConfig("narrationColor", value || undefined)
                   }
                 />
               </Field>
@@ -1030,24 +1056,15 @@ export function StyleEditor({ initial }: { initial?: ChatStyleDTO }) {
               {form.config.dropCap && (
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <Field label="首字颜色" hint="留空使用强调色">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="size-9 shrink-0 rounded-lg border border-border/60"
-                        style={{
-                          background:
-                            form.config.dropCapColor ||
-                            form.config.accentColor ||
-                            "#c9a45c",
-                        }}
-                      />
-                      <Input
-                        value={form.config.dropCapColor ?? ""}
-                        placeholder={form.config.accentColor || "#c9a45c"}
-                        onChange={(event) =>
-                          setConfig("dropCapColor", event.target.value)
-                        }
-                      />
-                    </div>
+                    <ColorPicker
+                      value={form.config.dropCapColor}
+                      fallback={form.config.accentColor || "#c9a45c"}
+                      placeholder="留空使用强调色"
+                      clearLabel="留空使用强调色"
+                      onChange={(value) =>
+                        setConfig("dropCapColor", value || undefined)
+                      }
+                    />
                   </Field>
                   <Field label="首字特效">
                     <Select
@@ -1262,6 +1279,8 @@ export function StyleEditor({ initial }: { initial?: ChatStyleDTO }) {
             <CssField
               value={form.customCss}
               onChange={(value) => set("customCss", value)}
+              target="style"
+              context={styleCssContext(form.config)}
             />
           </EditorSection>
         </div>
