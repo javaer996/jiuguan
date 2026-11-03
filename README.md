@@ -105,7 +105,7 @@ docker compose logs seed
 
 | 变量 | 必填 | 说明 |
 | --- | --- | --- |
-| `DATABASE_URL` | 是 | MySQL 连接串，需提前创建数据库 |
+| `DATABASE_URL` | 是 | MySQL 连接串；数据库不存在时自动创建（需要 CREATE 权限） |
 | `DB_POOL_SIZE` | 否 | 连接池大小，默认 10 |
 | `AUTH_SECRET` | 是 | JWT 签名密钥，至少 32 字符 |
 | `API_KEY_ENC_SECRET` | 是 | API Key 加密密钥，至少 32 字符，独立于 AUTH_SECRET |
