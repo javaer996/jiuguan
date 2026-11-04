@@ -23,6 +23,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { requireUserPage } from "@/lib/auth/page";
+import { applyChatVariables } from "@/lib/chat/variables";
 import { getPlazaTemplateDetail } from "@/lib/plaza/query";
 import type { PlazaStatus } from "@/lib/types/plaza";
 import { formatNumber, formatRelativeTime, initials } from "@/lib/utils";
@@ -64,10 +65,16 @@ export default async function PlazaDetailPage({ params }: PlazaDetailProps) {
   const isAdmin = context.user.role === "admin";
   const showStatus = detail.status !== "published" || !detail.published;
 
-  const greeting =
+  const rawGreeting =
     snapshot?.character.firstMessage?.trim() ||
     snapshot?.character.alternateGreetings?.[0]?.trim() ||
     null;
+  const greeting = rawGreeting
+    ? applyChatVariables(rawGreeting, {
+        char: snapshot?.character.name,
+        user: snapshot?.persona?.name ?? "你",
+      })
+    : null;
 
   const resourceCount = [
     snapshot?.character ? 1 : 0,

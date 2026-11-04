@@ -10,24 +10,13 @@ import {
   worldbookInputSchema,
 } from "@/lib/validation/content";
 import { sanitizeThemeTokensSafe, THEME_TOKENS } from "@/lib/theme/tokens";
+import type { AiKind } from "@/lib/ai/kinds";
 
-export const AI_KINDS = [
-  "character",
-  "worldbook",
-  "prompt",
-  "style",
-  "theme",
-] as const;
-
-export type AiKind = (typeof AI_KINDS)[number];
-
-export const AI_KIND_LABELS: Record<AiKind, string> = {
-  character: "角色卡",
-  worldbook: "世界书",
-  prompt: "提示词预设",
-  style: "对话样式",
-  theme: "聊天主题",
-};
+export {
+  AI_KINDS,
+  AI_KIND_LABELS,
+  type AiKind,
+} from "@/lib/ai/kinds";
 
 const characterDraftSchema = characterInputSchema.extend({
   description: z.string().trim().min(20, "角色描述太短").max(50_000),
@@ -240,6 +229,17 @@ function defaultKindPrompts(): Record<AiKind, GenerationKindPrompt> {
               dropCap: false,
               dropCapColor: "#c9a45c",
               dropCapEffect: "none",
+              showStatusTags: true,
+              statusTags: ["情绪", "体力", "关系"],
+              statusTagNotes: {
+                情绪: "当前主要情绪，随剧情变化",
+                体力: "0-100，受伤或疲惫时下降",
+                关系: "与主角的关系阶段，随互动推进",
+              },
+              showGoal: true,
+              showReplyOptions: true,
+              replyOptionStyles: ["温柔", "试探", "坚定"],
+              replyOptionCount: 3,
             },
           },
           null,
@@ -248,6 +248,9 @@ function defaultKindPrompts(): Record<AiKind, GenerationKindPrompt> {
         "layout 可选 bubble/novel/messenger/document；fontSize 10-28；lineHeight 1-3；maxWidth 400-1600。",
         "userBubble/assistantBubble 可分别设置双方气泡背景；userTextColor/assistantTextColor、userAccentColor/assistantAccentColor、userFontFamily/assistantFontFamily、userFontSize/assistantFontSize、userLineHeight/assistantLineHeight 可分别覆盖用户与角色的外观，留空则跟随全局。",
         "dropCap 表示助手消息首字下沉；dropCapEffect 可选 none/gradient/glow，只有 novel/document 布局适合开启。",
+        "默认开启互动增强：showStatusTags、showGoal、showReplyOptions 都设为 true。",
+        "statusTags 生成 3-5 个与世界观和角色相关的状态标签，每个标签在 statusTagNotes 里写一句含义与变化说明；showGoal 开启后 AI 会自动维护当前目标。",
+        "replyOptionStyles 生成 3-4 个符合角色语气的选项风格，replyOptionCount 设为 3。",
         "只使用合法的十六进制颜色，不要输出 customCss。",
       ].join("\n"),
       user: "请根据这个灵感设计对话样式：\n{{idea}}",

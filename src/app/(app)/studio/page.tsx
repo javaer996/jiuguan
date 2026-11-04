@@ -3,7 +3,7 @@ import Link from "next/link";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { BookOpen, Braces, Compass, Wand2 } from "lucide-react";
 import { getDb } from "@/db";
-import { apiProviders } from "@/db/schema";
+import { apiProviders, personas } from "@/db/schema";
 import { PageHeader } from "@/components/common/page-header";
 import { AiStudio } from "@/components/studio/ai-studio";
 import { Button } from "@/components/ui/button";
@@ -18,29 +18,47 @@ export const dynamic = "force-dynamic";
 export default async function StudioPage() {
   const context = await requireUserPage("/studio");
 
-  const providers = await getDb()
-    .select({
-      id: apiProviders.id,
-      name: apiProviders.name,
-      model: apiProviders.model,
-      isDefault: apiProviders.isDefault,
-    })
-    .from(apiProviders)
-    .where(
-      and(
-        eq(apiProviders.userId, context.user.id),
-        eq(apiProviders.status, "active"),
-        isNull(apiProviders.deletedAt),
-      ),
-    )
-    .orderBy(desc(apiProviders.isDefault), asc(apiProviders.name));
+  const db = getDb();
+  const [providers, personaOptions] = await Promise.all([
+    db
+      .select({
+        id: apiProviders.id,
+        name: apiProviders.name,
+        model: apiProviders.model,
+        isDefault: apiProviders.isDefault,
+      })
+      .from(apiProviders)
+      .where(
+        and(
+          eq(apiProviders.userId, context.user.id),
+          eq(apiProviders.status, "active"),
+          isNull(apiProviders.deletedAt),
+        ),
+      )
+      .orderBy(desc(apiProviders.isDefault), asc(apiProviders.name)),
+    db
+      .select({
+        id: personas.id,
+        name: personas.name,
+        description: personas.description,
+        isDefault: personas.isDefault,
+      })
+      .from(personas)
+      .where(
+        and(
+          eq(personas.userId, context.user.id),
+          isNull(personas.deletedAt),
+        ),
+      )
+      .orderBy(asc(personas.name)),
+  ]);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-7 sm:px-6 lg:px-10 lg:py-10">
       <PageHeader
         eyebrow="AI Studio"
         title="创作工坊"
-        description="把一句灵感交给你的 AI，生成角色、世界书、提示词与对话样式；预览满意后再保存为可编辑资产。"
+        description="输入一句灵感，一次生成角色卡、世界书、提示词、对话样式与聊天主题；可单项重生成、预览并调整发给 AI 的提示词，最后连同用户身份一键保存为对话模板。"
         actions={
           <>
             <Button variant="outline" asChild className="rounded-xl">
@@ -71,7 +89,11 @@ export default async function StudioPage() {
       </div>
 
       <div className="mt-6">
-        <AiStudio providers={providers} />
+        <AiStudio
+          providers={providers}
+          personas={personaOptions}
+          userId={context.user.id}
+        />
       </div>
     </div>
   );

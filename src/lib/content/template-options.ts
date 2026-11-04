@@ -64,7 +64,12 @@ export async function loadTemplateOptions(
         )
         .orderBy(asc(outputSchemas.name)),
       db
-        .select({ id: personas.id, name: personas.name })
+        .select({
+          id: personas.id,
+          name: personas.name,
+          description: personas.description,
+          isDefault: personas.isDefault,
+        })
         .from(personas)
         .where(and(eq(personas.userId, userId), isNull(personas.deletedAt)))
         .orderBy(asc(personas.name)),

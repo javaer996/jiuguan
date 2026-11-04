@@ -459,10 +459,13 @@ export function StylePreview({
   config,
   customCss,
   className,
+  bare = false,
 }: {
   config: StyleConfig;
   customCss?: string | null;
   className?: string;
+  /** 去掉外层的边框、背景与内边距，用于嵌入主题预览等已有容器。 */
+  bare?: boolean;
 }) {
   const layout = config.layout ?? "bubble";
   const fontSize = config.fontSize ?? 16;
@@ -592,7 +595,8 @@ export function StylePreview({
   return (
     <div
       className={cn(
-        "zy-chat rounded-xl border border-border/60 bg-background p-4 text-foreground",
+        "zy-chat text-foreground",
+        !bare && "rounded-xl border border-border/60 bg-background p-4",
         `zy-layout-${layout}`,
         className,
       )}

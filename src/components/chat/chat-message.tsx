@@ -12,6 +12,7 @@ import { StructuredContent } from "@/components/chat/structured-content";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import type { OutputSchemaSnapshot, StyleConfig } from "@/db/schema/types";
+import { applyChatVariables } from "@/lib/chat/variables";
 import { STYLE_PRESETS } from "@/lib/content/defaults";
 import type { ChatMessageDTO } from "@/lib/types/chat";
 import { cn, initials, withAlpha } from "@/lib/utils";
@@ -49,6 +50,11 @@ export function ChatMessage({
   const isUser = message.role === "user";
   const isNote = message.role === "note" || message.role === "system";
   const isAssistant = message.role === "assistant";
+  // 角色卡开场白与 AI 回复里常带 {{user}} / {{char}} 占位符，展示时替换成实际名称。
+  const resolvedContent = applyChatVariables(message.content, {
+    char: characterName,
+    user: userName,
+  });
   const bubble = layout === "bubble" || layout === "messenger";
   const showAvatar = Boolean(config.showAvatars) && !isNote;
   const showName =
@@ -82,7 +88,7 @@ export function ChatMessage({
     return (
       <div className="zy-note flex justify-center py-2">
         <p className="max-w-xl rounded-full bg-secondary/70 px-3 py-1 text-center text-[11px] leading-relaxed text-muted-foreground">
-          {message.content}
+          {resolvedContent}
         </p>
       </div>
     );
@@ -95,11 +101,11 @@ export function ChatMessage({
     message.content ? (
       schema ? (
         <pre className="max-h-48 overflow-hidden font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-muted-foreground">
-          {message.content}
+          {resolvedContent}
         </pre>
       ) : (
         <Markdown
-          content={message.content}
+          content={resolvedContent}
           narrationQuotes={config.narrationQuotes}
           narrationColor={config.narrationColor}
         />
@@ -118,7 +124,7 @@ export function ChatMessage({
     <StructuredContent structured={message.structured} schema={schema} />
   ) : (
     <Markdown
-      content={message.content}
+      content={resolvedContent}
       narrationQuotes={config.narrationQuotes}
       narrationColor={config.narrationColor}
     />

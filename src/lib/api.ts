@@ -65,6 +65,23 @@ export function handleApiError(error: unknown) {
   return jsonError(500, "INTERNAL_ERROR", "服务器开小差了，请稍后再试");
 }
 
+/** 拒绝明显过大的 JSON 请求体；content-length 缺失时交给平台限制。 */
+export function assertPayloadSize(
+  request: Request,
+  maxBytes = 2_000_000,
+) {
+  const raw = request.headers.get("content-length");
+  if (!raw) return;
+  const length = Number(raw);
+  if (Number.isFinite(length) && length > maxBytes) {
+    throw new ApiError(
+      413,
+      "PAYLOAD_TOO_LARGE",
+      "请求体过大，请精简内容后重试",
+    );
+  }
+}
+
 /** 解析并校验 JSON 请求体。 */
 export async function readJson<T>(
   request: Request,

@@ -11,6 +11,7 @@ import type {
 import { ApiError } from "@/lib/api";
 import { streamCompletion } from "@/lib/ai/openai";
 import type { ChatContext } from "@/lib/chat/context";
+import { applyChatVariables } from "@/lib/chat/variables";
 import {
   resolveAidsConfig,
   type AidsConfig,
@@ -254,7 +255,10 @@ function buildAidsPrompt(
           : message.role === "assistant"
             ? characterName
             : "旁白";
-      return `${speaker}：${message.content}`;
+      return `${speaker}：${applyChatVariables(message.content, {
+        char: characterName,
+        user: userName,
+      })}`;
     })
     .join("\n\n");
   if (transcript.length > 12_000) {
@@ -311,7 +315,10 @@ function buildAidsPrompt(
     statusNotesText,
     previousText,
     `【最近对话】\n${transcript}`,
-    `【需要整理的最新回复】\n${targetContent.slice(0, 2_500)}`,
+    `【需要整理的最新回复】\n${applyChatVariables(targetContent, {
+      char: characterName,
+      user: userName,
+    }).slice(0, 2_500)}`,
     `【输出结构】\n${JSON.stringify(example, null, 2)}`,
   ]
     .filter(Boolean)

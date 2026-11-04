@@ -1,5 +1,6 @@
 import type { ChatContext } from "@/lib/chat/context";
 import { buildMemoryText } from "@/lib/chat/memory";
+import { applyChatVariables } from "@/lib/chat/variables";
 import { DEFAULT_SYSTEM_PROMPT } from "@/lib/content/defaults";
 import { estimateTokens } from "@/lib/ai/tokens";
 import type { PromptBlock, WorldbookEntrySnapshot } from "@/db/schema/types";
@@ -566,7 +567,13 @@ export function buildChatPrompt(
     pre.push({ role: "system", content: baseSystem.trim() });
   }
   if (memoryText.trim()) {
-    pre.push({ role: "system", content: memoryText.trim() });
+    pre.push({
+      role: "system",
+      content: applyChatVariables(memoryText, {
+        char: variables.char,
+        user: variables.user,
+      }).trim(),
+    });
   }
   if (compressionText.trim()) {
     pre.push({ role: "system", content: compressionText.trim() });
@@ -684,11 +691,16 @@ export function buildChatPrompt(
           message.role === "assistant" ||
           message.role === "note"),
     )
-    .map<PromptMessage>((message) =>
-      message.role === "note"
-        ? { role: "system", content: message.content }
-        : { role: message.role as "user" | "assistant", content: message.content },
-    );
+    .map<PromptMessage>((message) => {
+      // 开场白与历史消息可能保留 {{user}} / {{char}} 占位符，发给模型前替换。
+      const content = applyChatVariables(message.content, {
+        char: variables.char,
+        user: variables.user,
+      });
+      return message.role === "note"
+        ? { role: "system", content }
+        : { role: message.role as "user" | "assistant", content };
+    });
 
   const maxMessages = Math.min(
     Math.max(settings.maxContextMessages ?? 40, 2),

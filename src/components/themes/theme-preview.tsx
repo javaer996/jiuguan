@@ -1,5 +1,7 @@
 "use client";
 
+import { StylePreview } from "@/components/styles/style-editor";
+import type { StyleConfig } from "@/db/schema/types";
 import { useLiveCustomCss } from "@/lib/css/use-live-css";
 import {
   sanitizeThemeBackgroundUrlSafe,
@@ -12,6 +14,7 @@ export function ThemePreview({
   tokens,
   backgroundUrl,
   customCss,
+  styleConfig,
   className,
   title = "雾港夜航",
   subtitle = "月见 · 暖金酒馆",
@@ -19,6 +22,8 @@ export function ThemePreview({
   tokens?: Record<string, string> | null;
   backgroundUrl?: string | null;
   customCss?: string | null;
+  /** 传入对话样式后，预览会使用这套排版与互动增强，而不是固定示例。 */
+  styleConfig?: StyleConfig | null;
   className?: string;
   title?: string;
   subtitle?: string;
@@ -69,55 +74,61 @@ export function ThemePreview({
         </span>
       </header>
 
-      <div className="space-y-3.5 px-4 py-4">
-        <div className="zy-message zy-message-assistant flex items-end gap-2">
-          <span className="zy-avatar flex size-7 shrink-0 items-center justify-center rounded-xl bg-card/90 font-display text-[10px] text-primary ring-1 ring-border/50 backdrop-blur-sm">
-            月
-          </span>
-          <div className="min-w-0 max-w-[82%]">
-            <p className="zy-name mb-1 text-[9px] tracking-[0.16em] text-muted-foreground/70 uppercase">
-              月见
-            </p>
-            <div className="zy-content zy-bubble rounded-2xl border border-primary/25 bg-card/80 px-3.5 py-2 text-[13px] leading-relaxed backdrop-blur-sm">
-              <div className="chat-prose">
-                <p>港口的雾又浓了。你来得正好，炉火刚添过一轮炭。</p>
+      {styleConfig ? (
+        <div className="px-4 py-4">
+          <StylePreview config={styleConfig} bare />
+        </div>
+      ) : (
+        <div className="space-y-3.5 px-4 py-4">
+          <div className="zy-message zy-message-assistant flex items-end gap-2">
+            <span className="zy-avatar flex size-7 shrink-0 items-center justify-center rounded-xl bg-card/90 font-display text-[10px] text-primary ring-1 ring-border/50 backdrop-blur-sm">
+              月
+            </span>
+            <div className="min-w-0 max-w-[82%]">
+              <p className="zy-name mb-1 text-[9px] tracking-[0.16em] text-muted-foreground/70 uppercase">
+                月见
+              </p>
+              <div className="zy-content zy-bubble rounded-2xl border border-primary/25 bg-card/80 px-3.5 py-2 text-[13px] leading-relaxed backdrop-blur-sm">
+                <div className="chat-prose">
+                  <p>港口的雾又浓了。你来得正好，炉火刚添过一轮炭。</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="zy-message zy-message-user flex flex-row-reverse items-end gap-2">
-          <span className="zy-avatar flex size-7 shrink-0 items-center justify-center rounded-xl bg-secondary/90 font-display text-[10px] text-muted-foreground ring-1 ring-border/50 backdrop-blur-sm">
-            你
-          </span>
-          <div className="flex min-w-0 max-w-[82%] flex-col items-end">
-            <p className="zy-name mb-1 text-[9px] tracking-[0.16em] text-muted-foreground/70 uppercase">
+          <div className="zy-message zy-message-user flex flex-row-reverse items-end gap-2">
+            <span className="zy-avatar flex size-7 shrink-0 items-center justify-center rounded-xl bg-secondary/90 font-display text-[10px] text-muted-foreground ring-1 ring-border/50 backdrop-blur-sm">
               你
-            </p>
-            <div className="zy-content zy-bubble rounded-2xl border border-primary/20 bg-primary/[0.08] px-3.5 py-2 text-[13px] leading-relaxed">
-              <div className="chat-prose">
-                <p>我在找一个人。有人说，他最后一次出现，是在这间酒馆。</p>
+            </span>
+            <div className="flex min-w-0 max-w-[82%] flex-col items-end">
+              <p className="zy-name mb-1 text-[9px] tracking-[0.16em] text-muted-foreground/70 uppercase">
+                你
+              </p>
+              <div className="zy-content zy-bubble rounded-2xl border border-primary/20 bg-primary/[0.08] px-3.5 py-2 text-[13px] leading-relaxed">
+                <div className="chat-prose">
+                  <p>我在找一个人。有人说，他最后一次出现，是在这间酒馆。</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="zy-message zy-message-assistant flex items-end gap-2">
-          <span className="zy-avatar flex size-7 shrink-0 items-center justify-center rounded-xl bg-card/90 font-display text-[10px] text-primary ring-1 ring-border/50 backdrop-blur-sm">
-            月
-          </span>
-          <div className="min-w-0 max-w-[82%]">
-            <p className="zy-name mb-1 text-[9px] tracking-[0.16em] text-muted-foreground/70 uppercase">
-              月见
-            </p>
-            <div className="zy-content zy-bubble rounded-2xl border border-primary/25 bg-card/80 px-3.5 py-2 text-[13px] leading-relaxed backdrop-blur-sm">
-              <div className="chat-prose">
-                <p>那要看，你愿意拿什么来换这个消息了。</p>
+          <div className="zy-message zy-message-assistant flex items-end gap-2">
+            <span className="zy-avatar flex size-7 shrink-0 items-center justify-center rounded-xl bg-card/90 font-display text-[10px] text-primary ring-1 ring-border/50 backdrop-blur-sm">
+              月
+            </span>
+            <div className="min-w-0 max-w-[82%]">
+              <p className="zy-name mb-1 text-[9px] tracking-[0.16em] text-muted-foreground/70 uppercase">
+                月见
+              </p>
+              <div className="zy-content zy-bubble rounded-2xl border border-primary/25 bg-card/80 px-3.5 py-2 text-[13px] leading-relaxed backdrop-blur-sm">
+                <div className="chat-prose">
+                  <p>那要看，你愿意拿什么来换这个消息了。</p>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="border-t border-border/60 bg-background/90 px-4 py-3 backdrop-blur-md">
         <div className="flex items-center gap-2">

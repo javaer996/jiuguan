@@ -1,8 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Bug, Loader2, SlidersHorizontal } from "lucide-react";
+import { Bug, Loader2, PencilLine, Plus, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
+import {
+  PersonaEditorDialog,
+  type PersonaEditorValue,
+} from "@/components/personas/persona-editor-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -66,6 +70,12 @@ export function ChatSettingsDialog({
   const [personaId, setPersonaId] = useState(
     detail.session.personaId ?? NONE,
   );
+  const [personaOptions, setPersonaOptions] = useState(
+    detail.options.personas,
+  );
+  const [personaEditor, setPersonaEditor] = useState<{
+    persona: PersonaEditorValue | null;
+  } | null>(null);
   const [worldbookIds, setWorldbookIds] = useState<string[]>(
     detail.session.worldbookIds ?? [],
   );
@@ -87,6 +97,22 @@ export function ChatSettingsDialog({
   const selectedProvider = detail.options.providers.find(
     (option) => option.id === providerId,
   );
+  const selectedPersona = personaOptions.find(
+    (option) => option.id === personaId,
+  );
+
+  function handlePersonaSaved(persona: PersonaEditorValue) {
+    setPersonaOptions((previous) => {
+      const exists = previous.some((option) => option.id === persona.id);
+      return exists
+        ? previous.map((option) =>
+            option.id === persona.id ? { ...option, ...persona } : option,
+          )
+        : [...previous, persona];
+    });
+    // 新建身份后直接选中它；编辑已有身份时保持当前选择。
+    if (!personaEditor?.persona) setPersonaId(persona.id);
+  }
   const providerModelInfo =
     providerId === NONE ? detail.provider : selectedProvider;
   const availableModels = providerModelInfo
@@ -197,16 +223,10 @@ export function ChatSettingsDialog({
       options: detail.options.schemas,
       empty: "纯文本回复",
     },
-    {
-      label: "用户身份",
-      value: personaId,
-      set: setPersonaId,
-      options: detail.options.personas,
-      empty: "默认身份",
-    },
   ];
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
@@ -239,6 +259,57 @@ export function ChatSettingsDialog({
                 </Select>
               </div>
             ))}
+
+            <div className="space-y-2 sm:col-span-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label>用户身份</Label>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPersonaEditor({ persona: null })}
+                    className="h-7 rounded-lg px-2 text-[11px]"
+                  >
+                    <Plus data-icon="inline-start" />
+                    新建
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (selectedPersona) {
+                        setPersonaEditor({ persona: selectedPersona });
+                      }
+                    }}
+                    disabled={!selectedPersona}
+                    className="h-7 rounded-lg px-2 text-[11px]"
+                  >
+                    <PencilLine data-icon="inline-start" />
+                    编辑
+                  </Button>
+                </div>
+              </div>
+              <Select value={personaId} onValueChange={setPersonaId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>默认身份</SelectItem>
+                  {personaOptions.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">
+                {selectedPersona?.description ||
+                  "身份名称会替换对话中的 {{user}}，点「编辑」可以补充身份特点。"}
+              </p>
+            </div>
+
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="chat-model">模型</Label>
               <Input
@@ -488,5 +559,14 @@ export function ChatSettingsDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {personaEditor && (
+      <PersonaEditorDialog
+        persona={personaEditor.persona}
+        onClose={() => setPersonaEditor(null)}
+        onSaved={handlePersonaSaved}
+      />
+    )}
+    </>
   );
 }

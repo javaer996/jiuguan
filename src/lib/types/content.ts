@@ -132,6 +132,8 @@ export type TemplateOption = {
   id: string;
   name: string;
   avatarUrl?: string | null;
+  description?: string | null;
+  isDefault?: boolean;
 };
 
 export type ProviderOption = TemplateOption & {
