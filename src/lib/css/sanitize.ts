@@ -133,6 +133,43 @@ const ALLOWED_PROPERTIES = new Set([
   "overflow",
   "overflow-x",
   "overflow-y",
+  "position",
+  "top",
+  "right",
+  "bottom",
+  "left",
+  "inset",
+  "inset-block",
+  "inset-inline",
+  "inset-block-start",
+  "inset-block-end",
+  "inset-inline-start",
+  "inset-inline-end",
+  "z-index",
+  "pointer-events",
+  "border-image",
+  "border-image-source",
+  "border-image-slice",
+  "border-image-width",
+  "border-image-outset",
+  "border-image-repeat",
+  "mask",
+  "mask-image",
+  "mask-mode",
+  "mask-repeat",
+  "mask-position",
+  "mask-clip",
+  "mask-origin",
+  "mask-size",
+  "mask-composite",
+  "-webkit-mask",
+  "-webkit-mask-image",
+  "-webkit-mask-repeat",
+  "-webkit-mask-position",
+  "-webkit-mask-clip",
+  "-webkit-mask-origin",
+  "-webkit-mask-size",
+  "-webkit-mask-composite",
   "float",
   "clear",
   "columns",
@@ -181,9 +218,68 @@ const URL_PROPERTIES = new Set(["background", "background-image"]);
 const FORBIDDEN_AT_RULE_PRELUDE =
   /[{}<>\\@]|url\s*\(|expression\s*\(|javascript:|behavior\s*:|-moz-binding|var\s*\(|attr\s*\(|env\s*\(|image-set\s*\(/i;
 
-const KEYFRAMES_NAME = /^(--)?[A-Za-z_][A-Za-z0-9_-]*$/;
+const KEYFRAMES_NAME = /^(--)?[^\W\d][\w-]*$/;
 
 const KEYFRAME_SELECTOR = /^(from|to|\d+(?:\.\d+)?%)$/i;
+
+/**
+ * 定位相关属性：允许相对/绝对定位来做气泡外装饰（兔耳、铆钉等），
+ * 但禁止 fixed / sticky，避免覆盖整个页面伪装界面。
+ */
+const POSITION_VALUES = new Set(["relative", "absolute", "static"]);
+
+const POINTER_EVENTS_VALUES = new Set(["none", "auto"]);
+
+const OFFSET_PROPERTIES = new Set([
+  "top",
+  "right",
+  "bottom",
+  "left",
+  "inset",
+  "inset-block",
+  "inset-inline",
+  "inset-block-start",
+  "inset-block-end",
+  "inset-inline-start",
+  "inset-inline-end",
+]);
+
+const OFFSET_VALUE =
+  /^(auto|0|-?(?:\d+|\d*\.\d+)(?:px|em|rem|%|vw|vh|vmin|vmax|ch|ex|pt))$/i;
+
+/** border-image / mask 只允许渐变，不允许 url()，避免新增外部请求面。 */
+const GRADIENT_ONLY_PROPERTIES = new Set([
+  "border-image",
+  "border-image-source",
+  "mask",
+  "mask-image",
+  "-webkit-mask",
+  "-webkit-mask-image",
+]);
+
+function isAllowedDeclarationValue(property: string, value: string) {
+  if (property === "position") {
+    return POSITION_VALUES.has(value.toLowerCase());
+  }
+  if (property === "pointer-events") {
+    return POINTER_EVENTS_VALUES.has(value.toLowerCase());
+  }
+  if (OFFSET_PROPERTIES.has(property)) {
+    return value
+      .split(/\s+/)
+      .every((part) => OFFSET_VALUE.test(part.trim()));
+  }
+  if (property === "z-index") {
+    if (value.toLowerCase() === "auto") return true;
+    if (!/^-?\d+$/.test(value)) return false;
+    const zIndex = Number(value);
+    return zIndex >= -1 && zIndex <= 20;
+  }
+  if (GRADIENT_ONLY_PROPERTIES.has(property)) {
+    return !/url\s*\(/i.test(value);
+  }
+  return true;
+}
 
 function isKeyframesAtRule(atrule: csstree.Atrule | null): boolean {
   if (!atrule) return false;
@@ -321,7 +417,8 @@ function prefixSelector(prelude: csstree.CssNode): string | null {
  * 清洗用户自定义 CSS：
  * - 仅保留 @media、@supports 与 @keyframes，其余 at-rule 删除
  * - 只保留白名单属性
- * - url() 仅允许出现在 background / background-image，且只接受 /uploads/ 或公网 http(s)
+ * - position 只允许 relative / absolute / static；偏移、z-index 与 pointer-events 受范围限制
+ * - border-image / mask 只允许渐变，不允许 url()；url() 仅允许出现在 background / background-image
  * - 拒绝 expression()、CSS 变量、尖括号与反斜杠
  * - 普通选择器自动限定在 .zy-chat 之内，关键帧选择器保持原样
  */
@@ -400,6 +497,7 @@ export function sanitizeCustomCss(input: string): string {
         !value ||
         !ALLOWED_PROPERTIES.has(property) ||
         FORBIDDEN_VALUE.test(value) ||
+        !isAllowedDeclarationValue(property, value) ||
         value.length > CSS_LIMITS.maxValueLength ||
         (usesUrl &&
           (!URL_PROPERTIES.has(property) || !hasOnlySafeUrls(node)))

@@ -52,11 +52,15 @@ import {
   DEFAULT_STATUS_TAGS,
   STYLE_PRESETS,
 } from "@/lib/content/defaults";
+import { STYLE_FONT_OPTIONS } from "@/lib/content/fonts";
 import type { StyleConfig } from "@/db/schema/types";
 import type { ChatStyleDTO } from "@/lib/types/content";
 import { cn, withAlpha } from "@/lib/utils";
 
 const LAYOUT_OPTIONS = CHAT_LAYOUTS;
+
+/** Radix Select 不允许空字符串作为选项值，用哨兵表示「跟随全局」。 */
+const FONT_FOLLOW = "__follow__";
 
 const SAMPLE_STATUS_VALUES: Record<string, string> = {
   情绪: "平静而警觉",
@@ -91,9 +95,6 @@ function styleCssContext(config: StyleConfig) {
     `角色文字颜色：${config.assistantTextColor || "跟随全局"}`,
     `用户强调色：${config.userAccentColor || "跟随全局"}`,
     `角色强调色：${config.assistantAccentColor || "跟随全局"}`,
-    config.dropCap
-      ? `首字下沉：开启，颜色 ${config.dropCapColor || config.accentColor || "跟随强调色"}`
-      : "首字下沉：关闭，不要生成 ::first-letter 放大效果",
   ]
     .filter(Boolean)
     .join("；");
@@ -394,11 +395,35 @@ function SideStyleFields({
         />
       </Field>
       <Field label="字体" hint="留空跟随全局">
-        <Input
-          value={fontFamily ?? ""}
-          placeholder="留空跟随全局"
-          onChange={(event) => patch(`${side}FontFamily`, event.target.value)}
-        />
+        <Select
+          value={fontFamily || FONT_FOLLOW}
+          onValueChange={(value) =>
+            patch(
+              `${side}FontFamily`,
+              value === FONT_FOLLOW ? undefined : value,
+            )
+          }
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="跟随全局" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={FONT_FOLLOW}>跟随全局</SelectItem>
+            {STYLE_FONT_OPTIONS.filter((option) => option.value).map(
+              (option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ),
+            )}
+            {fontFamily &&
+              !STYLE_FONT_OPTIONS.some(
+                (option) => option.value === fontFamily,
+              ) && (
+                <SelectItem value={fontFamily}>当前字体（自定义）</SelectItem>
+              )}
+          </SelectContent>
+        </Select>
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field
@@ -595,7 +620,7 @@ export function StylePreview({
   return (
     <div
       className={cn(
-        "zy-chat text-foreground",
+        "zy-chat relative text-foreground",
         !bare && "rounded-xl border border-border/60 bg-background p-4",
         `zy-layout-${layout}`,
         className,
@@ -1020,6 +1045,39 @@ export function StyleEditor({ initial }: { initial?: ChatStyleDTO }) {
                   }
                 />
               </Field>
+              <Field label="字体" hint="跟随全局使用系统无衬线">
+                <Select
+                  value={form.config.fontFamily || FONT_FOLLOW}
+                  onValueChange={(value) =>
+                    setConfig(
+                      "fontFamily",
+                      value === FONT_FOLLOW ? undefined : value,
+                    )
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="跟随全局" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={FONT_FOLLOW}>跟随全局</SelectItem>
+                    {STYLE_FONT_OPTIONS.filter((option) => option.value).map(
+                      (option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ),
+                    )}
+                    {form.config.fontFamily &&
+                      !STYLE_FONT_OPTIONS.some(
+                        (option) => option.value === form.config.fontFamily,
+                      ) && (
+                        <SelectItem value={form.config.fontFamily}>
+                          当前字体（自定义）
+                        </SelectItem>
+                      )}
+                  </SelectContent>
+                </Select>
+              </Field>
               <Field label="强调色" hint="点击色块选择">
                 <ColorPicker
                   value={form.config.accentColor}
@@ -1042,56 +1100,6 @@ export function StyleEditor({ initial }: { initial?: ChatStyleDTO }) {
                   }
                 />
               </Field>
-            </div>
-
-            <div className="rounded-xl border border-border/60 bg-background/25 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-medium">首字下沉</p>
-                  <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                    助手消息第一段的首字放大并占两行，小说与信笺布局最自然。
-                  </p>
-                </div>
-                <Switch
-                  checked={Boolean(form.config.dropCap)}
-                  onCheckedChange={(checked) => setConfig("dropCap", checked)}
-                />
-              </div>
-              {form.config.dropCap && (
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <Field label="首字颜色" hint="留空使用强调色">
-                    <ColorPicker
-                      value={form.config.dropCapColor}
-                      fallback={form.config.accentColor || "#c9a45c"}
-                      placeholder="留空使用强调色"
-                      clearLabel="留空使用强调色"
-                      onChange={(value) =>
-                        setConfig("dropCapColor", value || undefined)
-                      }
-                    />
-                  </Field>
-                  <Field label="首字特效">
-                    <Select
-                      value={form.config.dropCapEffect ?? "none"}
-                      onValueChange={(value) =>
-                        setConfig(
-                          "dropCapEffect",
-                          value as StyleConfig["dropCapEffect"],
-                        )
-                      }
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">纯色</SelectItem>
-                        <SelectItem value="gradient">渐变</SelectItem>
-                        <SelectItem value="glow">微光</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                </div>
-              )}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">

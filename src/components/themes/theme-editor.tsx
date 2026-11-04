@@ -42,10 +42,10 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiClientError, apiFetch } from "@/lib/client/api";
+import { THEME_FONT_OPTIONS } from "@/lib/content/fonts";
 import { THEME_PRESETS, themePreset } from "@/lib/theme/presets";
 import { THEME_TOKENS } from "@/lib/theme/tokens";
 import type { ThemeDTO } from "@/lib/types/content";
-import { cn } from "@/lib/utils";
 
 type ThemeForm = {
   name: string;
@@ -402,13 +402,39 @@ export function ThemeEditor({ initial }: { initial?: ThemeDTO }) {
                                   setToken(token.key, next)
                                 }
                               />
+                            ) : token.kind === "font" ? (
+                              <Select
+                                value={value || token.defaultValue}
+                                onValueChange={(next) =>
+                                  setToken(token.key, next)
+                                }
+                              >
+                                <SelectTrigger className="w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {THEME_FONT_OPTIONS.map((option) => (
+                                    <SelectItem
+                                      key={option.value}
+                                      value={option.value}
+                                    >
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                  {value &&
+                                    !THEME_FONT_OPTIONS.some(
+                                      (option) => option.value === value,
+                                    ) && (
+                                      <SelectItem value={value}>
+                                        当前字体（自定义）
+                                      </SelectItem>
+                                    )}
+                                </SelectContent>
+                              </Select>
                             ) : (
                               <Input
                                 value={value}
                                 maxLength={200}
-                                className={cn(
-                                  token.kind === "font" && "font-mono text-xs",
-                                )}
                                 onChange={(event) =>
                                   setToken(token.key, event.target.value)
                                 }
