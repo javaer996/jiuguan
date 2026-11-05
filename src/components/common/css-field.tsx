@@ -95,11 +95,77 @@ const STAMP_BORDER_EXAMPLE = `/* 邮票齿孔：用 mask 在气泡边缘打孔 *
     linear-gradient(#000 0 0);
 }`;
 
+const AGED_KNOT_EXAMPLE = `/* 做旧纸面 + 中国结 + 首字下沉 */
+.zy-bubble.zy-content {
+  color: #2c221e;
+  background-color: #e8dcc4;
+  background-image:
+    radial-gradient(ellipse at 18% 24%, rgba(120, 80, 50, 0.18), transparent 52%),
+    radial-gradient(ellipse at 82% 78%, rgba(90, 50, 30, 0.16), transparent 58%),
+    repeating-linear-gradient(0deg, rgba(120, 90, 60, 0.06) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(90deg, rgba(120, 90, 60, 0.05) 0 1px, transparent 1px 7px);
+  border: 3px solid #8c6d53;
+  border-radius: 2px 14px 3px 12px / 12px 3px 14px 2px;
+  box-shadow:
+    inset 0 0 42px rgba(90, 60, 40, 0.3),
+    0 8px 20px rgba(44, 34, 30, 0.28);
+  position: relative;
+}
+
+/* 中国结：旋转 45° 的菱形结体 */
+.zy-bubble.zy-content::before {
+  content: "";
+  position: absolute;
+  top: -12px;
+  right: 20px;
+  width: 30px;
+  height: 30px;
+  background:
+    linear-gradient(45deg, transparent 42%, #b84a39 42% 58%, transparent 58%),
+    linear-gradient(-45deg, transparent 42%, #b84a39 42% 58%, transparent 58%);
+  border: 2px solid #7a2e23;
+  border-radius: 6px;
+  box-shadow: 0 0 0 3px rgba(184, 74, 57, 0.18);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+/* 流苏 */
+.zy-bubble.zy-content::after {
+  content: "";
+  position: absolute;
+  top: 20px;
+  right: 30px;
+  width: 6px;
+  height: 34px;
+  background: repeating-linear-gradient(180deg, #b84a39 0 4px, transparent 4px 7px);
+  border-left: 1px solid #7a2e23;
+  border-right: 1px solid #7a2e23;
+  pointer-events: none;
+}
+
+/* 首字下沉 */
+.zy-content .chat-prose > p:first-of-type::first-letter {
+  float: left;
+  font-size: 3.2em;
+  line-height: 0.85;
+  margin: 0.08em 0.12em 0 0;
+  color: #7a2e23;
+  font-family: "Noto Serif SC", "Songti SC", serif;
+  font-weight: 700;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.zy-content {
+  display: flow-root;
+}`;
+
 const CSS_EXAMPLES = [
   { key: "dropcap", label: "首字下沉", snippet: DROP_CAP_EXAMPLE },
   { key: "steel", label: "钢铁边框", snippet: STEEL_BORDER_EXAMPLE },
   { key: "ears", label: "兔耳边框", snippet: RABBIT_EARS_EXAMPLE },
   { key: "stamp", label: "邮票齿孔", snippet: STAMP_BORDER_EXAMPLE },
+  { key: "aged-knot", label: "做旧中国结", snippet: AGED_KNOT_EXAMPLE },
 ] as const;
 
 export function CssField({
@@ -226,7 +292,7 @@ export function CssField({
   const aiPlaceholder =
     target === "theme"
       ? "描述聊天区域的效果，例如：冷雾青绿，气泡边缘有微光"
-      : "描述想要的效果，例如：钢铁边框四角有铆钉、气泡顶部两只兔耳、邮票齿孔边";
+      : "描述想要的效果，例如：做旧纸面、破旧污渍纹理、中国结边框、首字下沉";
 
   return (
     <Field label="CSS" hint="可选">
@@ -282,7 +348,9 @@ export function CssField({
           </Button>
         </div>
         <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-          AI 会基于当前 CSS 修改，并立即更新右侧预览。支持 @media、@keyframes 动画和背景图 URL；不支持 @import、var() 与定位叠层。生成结果仍需点击保存。
+          AI 会基于当前 CSS 修改，并立即更新右侧预览。描述越具体越好，例如「多层污渍渐变 +
+          纸纹 + 菱形中国结 + 流苏 + 首字下沉」；点名效果缺失时会自动补生成一次。支持 @media、@keyframes
+          与 URL；不支持 @import、var() 与定位叠层。生成结果仍需点击保存。
         </p>
         {error && (
           <p
@@ -389,7 +457,7 @@ export function CssField({
           支持 <code>@media</code>、<code>@supports</code> 与{" "}
           <code>@keyframes</code> 动画；支持 <code>position: absolute</code>、
           <code>inset</code>、<code>z-index</code>、<code>border-image</code>、{" "}
-          <code>mask</code> 等装饰属性，可以做兔耳、钢铁描边、邮票齿孔等异形边框。
+          <code>mask</code> 等装饰属性，可以做兔耳、钢铁描边、邮票齿孔、做旧纸面、中国结等异形边框与质感。
           <code>position</code> 只允许 relative / absolute / static（禁止 fixed /
           sticky）；<code>border-image</code> 与 <code>mask</code> 只能使用渐变。
           背景图仅允许 <code>/uploads/...</code> 或 http(s) 地址。包含{" "}

@@ -55,7 +55,8 @@ export type PlazaListResult = {
   total: number;
 };
 
-const publicConditions = [
+/** 广场公开内容的统一口径，分类计数等地方复用。 */
+export const publicConditions = [
   isNull(plazaTemplates.deletedAt),
   isNotNull(plazaTemplates.publishedVersionId),
   ne(plazaTemplates.status, "archived"),

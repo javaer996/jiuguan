@@ -1,20 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  Bookmark,
-  Coffee,
-  Compass,
-  Flame,
-  Heart,
-  Plus,
-  Rocket,
-  Search,
-  Sparkles,
-  Swords,
-  Tag,
-  type LucideIcon,
-} from "lucide-react";
+import { Bookmark, Compass, Plus, Search, Tag } from "lucide-react";
 import { EmptyState } from "@/components/common/empty-state";
+import { PlazaCategoryIcon } from "@/components/plaza/category-icon";
 import { PlazaCard } from "@/components/plaza/plaza-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,19 +19,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-const ICONS: Record<string, LucideIcon> = {
-  Heart,
-  Sword: Swords,
-  Swords,
-  Coffee,
-  Search,
-  Flame,
-  Rocket,
-  Compass,
-  Sparkles,
-  Tag,
-};
 
 const SORTS: { key: PlazaListSort; label: string }[] = [
   { key: "hot", label: "热门" },
@@ -185,25 +160,22 @@ export default async function PlazaPage({ searchParams }: PlazaPageProps) {
           <Compass className="size-3.5" />
           全部
         </Link>
-        {categories.map((item) => {
-          const Icon = ICONS[item.icon ?? ""] ?? Sparkles;
-          return (
-            <Link
-              key={item.id}
-              href={buildHref(base, { category: item.slug })}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors",
-                category === item.slug
-                  ? "border-primary/40 bg-primary/12 text-primary"
-                  : "border-border/60 text-muted-foreground hover:border-primary/30 hover:text-foreground",
-              )}
-            >
-              <Icon className="size-3.5" />
-              {item.name}
-              <span className="text-[10px] opacity-60">{item.templateCount}</span>
-            </Link>
-          );
-        })}
+        {categories.map((item) => (
+          <Link
+            key={item.id}
+            href={buildHref(base, { category: item.slug })}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-colors",
+              category === item.slug
+                ? "border-primary/40 bg-primary/12 text-primary"
+                : "border-border/60 text-muted-foreground hover:border-primary/30 hover:text-foreground",
+            )}
+          >
+            <PlazaCategoryIcon name={item.icon} className="size-3.5" />
+            {item.name}
+            <span className="text-[10px] opacity-60">{item.templateCount}</span>
+          </Link>
+        ))}
       </div>
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-3">

@@ -3,7 +3,7 @@ import { loadEnvConfig } from "@next/env";
 loadEnvConfig(process.cwd());
 
 import { randomBytes } from "node:crypto";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { v7 as uuidv7 } from "uuid";
 import { closeDb, getDb } from "../src/db";
 import {
@@ -158,23 +158,19 @@ async function seedInviteCode() {
 
 async function seedCategories() {
   const db = getDb();
-  const slugs = CATEGORIES.map((category) => category.slug);
-  const existing = await db
-    .select({ slug: plazaCategories.slug })
-    .from(plazaCategories)
-    .where(inArray(plazaCategories.slug, slugs));
+  // 只在分类表为空时写入默认分类：
+  // 管理员删掉或改过的默认分类，重跑 seed 不会被重新创建。
+  const [existing] = await db
+    .select({ total: sql<number>`count(*)`.mapWith(Number) })
+    .from(plazaCategories);
 
-  const existingSlugs = new Set(existing.map((row) => row.slug));
-  const missing = CATEGORIES.filter(
-    (category) => !existingSlugs.has(category.slug),
-  );
-
-  if (missing.length > 0) {
-    await db.insert(plazaCategories).values(missing);
-    console.log(`[seed] 已创建 ${missing.length} 个广场分类`);
-  } else {
+  if ((existing?.total ?? 0) > 0) {
     console.log("[seed] 广场分类已存在，跳过创建");
+    return;
   }
+
+  await db.insert(plazaCategories).values(CATEGORIES);
+  console.log(`[seed] 已创建 ${CATEGORIES.length} 个默认广场分类`);
 }
 
 async function seedSettings() {

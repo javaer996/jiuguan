@@ -10,6 +10,20 @@ export type PlazaCategoryDTO = {
   templateCount: number;
 };
 
+export type AdminPlazaCategoryDTO = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  sortOrder: number;
+  createdAt: string;
+  /** 与公开端 templateCount 同口径：已发布且未归档、未删除 */
+  publicTemplateCount: number;
+  /** 全部未软删除投稿，删除分类时会变成未分类 */
+  totalTemplateCount: number;
+};
+
 export type PlazaAuthorDTO = {
   id: string;
   displayName: string;

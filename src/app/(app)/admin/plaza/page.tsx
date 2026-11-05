@@ -7,6 +7,7 @@ import {
   Clock3,
   Compass,
   ExternalLink,
+  Tags,
   XCircle,
 } from "lucide-react";
 import { PlazaReviewActions } from "@/components/admin/plaza-review-actions";
@@ -60,12 +61,20 @@ export default async function AdminPlazaPage({
         title="广场审核"
         description="检查投稿的角色、世界书与内容，通过后旅人才能在广场上使用。"
         actions={
-          <Button variant="outline" asChild className="rounded-xl">
-            <Link href="/admin">
-              <Compass data-icon="inline-start" />
-              管理后台
-            </Link>
-          </Button>
+          <>
+            <Button variant="outline" asChild className="rounded-xl">
+              <Link href="/admin">
+                <Compass data-icon="inline-start" />
+                管理后台
+              </Link>
+            </Button>
+            <Button variant="outline" asChild className="rounded-xl">
+              <Link href="/admin/plaza/categories">
+                <Tags data-icon="inline-start" />
+                分类管理
+              </Link>
+            </Button>
+          </>
         }
       />
 

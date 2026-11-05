@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   ScrollText,
   SlidersHorizontal,
+  Tag,
   Users,
   Wand2,
   type LucideIcon,
@@ -18,6 +19,7 @@ import { cn } from "@/lib/utils";
 const ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/admin", label: "概览", icon: LayoutDashboard },
   { href: "/admin/plaza", label: "广场审核", icon: Compass },
+  { href: "/admin/plaza/categories", label: "广场分类", icon: Tag },
   { href: "/admin/users", label: "用户", icon: Users },
   { href: "/admin/invites", label: "邀请码", icon: KeyRound },
   { href: "/admin/providers", label: "共享 API", icon: Cpu },
@@ -29,13 +31,19 @@ const ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
 export function AdminNav() {
   const pathname = usePathname();
 
+  // 最长前缀匹配，避免 /admin/plaza 与 /admin/plaza/categories 同时高亮。
+  const activeHref = ITEMS.reduce((best, item) => {
+    const matches =
+      item.href === "/admin"
+        ? pathname === "/admin"
+        : pathname === item.href || pathname.startsWith(`${item.href}/`);
+    return matches && item.href.length > best.length ? item.href : best;
+  }, "");
+
   return (
     <nav className="-mx-1 flex gap-1 overflow-x-auto py-3">
       {ITEMS.map((item) => {
-        const active =
-          item.href === "/admin"
-            ? pathname === "/admin"
-            : pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const active = item.href === activeHref;
         return (
           <Link
             key={item.href}

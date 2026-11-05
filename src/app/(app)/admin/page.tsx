@@ -10,11 +10,17 @@ import {
   ScrollText,
   Shield,
   SlidersHorizontal,
+  Tag,
   Users,
   Wand2,
 } from "lucide-react";
 import { getDb } from "@/db";
-import { inviteCodes, plazaTemplates, users } from "@/db/schema";
+import {
+  inviteCodes,
+  plazaCategories,
+  plazaTemplates,
+  users,
+} from "@/db/schema";
 import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
 import { requireUserPage } from "@/lib/auth/page";
@@ -30,7 +36,7 @@ export default async function AdminPage() {
   if (context.user.role !== "admin") redirect("/chats");
 
   const db = getDb();
-  const [pendingRow, userRow, inviteRow] = await Promise.all([
+  const [pendingRow, userRow, inviteRow, categoryRow] = await Promise.all([
     db
       .select({ total: sql<number>`count(*)`.mapWith(Number) })
       .from(plazaTemplates)
@@ -48,11 +54,15 @@ export default async function AdminPage() {
       .select({ total: sql<number>`count(*)`.mapWith(Number) })
       .from(inviteCodes)
       .where(eq(inviteCodes.disabled, false)),
+    db
+      .select({ total: sql<number>`count(*)`.mapWith(Number) })
+      .from(plazaCategories),
   ]);
 
   const pending = pendingRow[0]?.total ?? 0;
   const userCount = userRow[0]?.total ?? 0;
   const inviteCount = inviteRow[0]?.total ?? 0;
+  const categoryCount = categoryRow[0]?.total ?? 0;
 
   const cards = [
     {
@@ -61,6 +71,14 @@ export default async function AdminPage() {
       href: "/admin/plaza",
       icon: Compass,
       stat: `${pending} 份待审核`,
+      ready: true,
+    },
+    {
+      title: "广场分类",
+      description: "维护广场筛选条与投稿表单里的分类、图标与排序。",
+      href: "/admin/plaza/categories",
+      icon: Tag,
+      stat: `${categoryCount} 个分类`,
       ready: true,
     },
     {

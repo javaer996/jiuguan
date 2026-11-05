@@ -26,6 +26,9 @@ const ACTION_LABEL: Record<string, string> = {
   "plaza.archive": "下架投稿",
   "plaza.feature": "推荐投稿",
   "plaza.unfeature": "取消推荐",
+  "plaza_category.create": "新建广场分类",
+  "plaza_category.update": "修改广场分类",
+  "plaza_category.delete": "删除广场分类",
 };
 
 function detailSummary(detail: Record<string, unknown> | null) {
